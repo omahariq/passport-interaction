@@ -69,7 +69,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   pointer-events: none;
   z-index: 50;
   translate: -50% -50%;
-  filter: drop-shadow(0 10px 14px rgba(40, 30, 10, .28));
+  filter: drop-shadow(0 10px 14px rgba(40, 30, 10, .14));
 }
 .ghost canvas { width: 100%; height: 100%; display: block; }
 
@@ -247,7 +247,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   }
   const INK = makeInkMask(512);
   const PAPER_GRAIN = makeGrain(256, [90, 68, 38], 26);
-  const COVER_GRAIN = makeGrain(256, [10, 30, 70], 30);
+  const COVER_GRAIN = makeGrain(256, [0, 0, 0], 30);
 
   // ---------- stamp artwork (canvas, so it can be painted onto page textures) ----------
   const C = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -438,9 +438,9 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
         ctx.restore();
       });
     } else {
-      ctx.fillStyle = f.kind === "cover" ? "#4a93ee" : "#3f84dc"; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#1D1C1C"; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = ctx.createPattern(COVER_GRAIN, "repeat"); ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = grad("rgba(10,30,70,.18)", "rgba(10,30,70,0)"); ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = grad("rgba(0,0,0,.18)", "rgba(0,0,0,0)"); ctx.fillRect(0, 0, w, h);
     }
     ctx.restore();
     f.texture.needsUpdate = true;
@@ -512,7 +512,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const ctx = c.getContext("2d");
     const p = new Path2D(), r = .05 * W * s, far = 10000;
     p.roundRect(SH_M * s - far, SH_M * s, W * s, H * s, [0, r, r, 0]);
-    ctx.shadowColor = "rgba(40,28,10,.3)";
+    ctx.shadowColor = "rgba(40,28,10,.15)";
     ctx.shadowBlur = .022 * s;
     ctx.shadowOffsetX = far + .004 * s;
     ctx.shadowOffsetY = .005 * s;
@@ -679,7 +679,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       if (leaf.i >= flipped) depth = leaf.i - Math.max(flipped, 1);
       else depth = Math.min(flipped - 1, paperLast) - leaf.i;
       const side = leaf.i >= flipped ? 1 : -1;
-      const off = side * depth * STACK, shade = 1 - Math.min(.15, depth * .03);
+      const off = side * depth * STACK, shade = 1 - Math.min(.06, depth * .012);
       const nextOff = leaf.off + (off - leaf.off) * .18;
       if (Math.abs(nextOff - leaf.off) > 1e-6) leaf.dirty = true;
       leaf.off = Math.abs(off - nextOff) < 1e-5 ? off : nextOff;
@@ -721,7 +721,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     leaves.forEach(leaf => {
       // Only a moving sheet casts a shadow (plus the covers, for the shadow on the desk).
       // Sheets lying still never shade each other; their stacked-edge shadows handle that.
-      leaf.meshes[0].castShadow = leaf.isCover || !atRest(leaf);
+      leaf.meshes[0].castShadow = !atRest(leaf);
       if (atRest(leaf)) return;
       const e = Math.min(1, Math.min(leaf.t, 1 - leaf.t) / .15);
       target = Math.min(target, e * e * (3 - 2 * e));
