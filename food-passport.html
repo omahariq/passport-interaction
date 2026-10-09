@@ -1,0 +1,969 @@
+<title>Food Passport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&display=swap">
+<style>
+/* Layout: a 3D passport on a quiet desk, the stamp sheet beneath it. No copy. */
+:root {
+  --desk: #f4f3ef;
+  --chrome: #ffffff;
+  --chrome-line: #e2dfd7;
+  --accent: #d9541e;
+  --paper: #e8dfcf;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --desk: #1b1d21; --chrome: #26292e; --chrome-line: #3a3d43; --accent: #f07a45; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --desk: #1b1d21; --chrome: #26292e; --chrome-line: #3a3d43; --accent: #f07a45; color-scheme: dark; }
+
+html, body { height: 100%; }
+body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
+.app {
+  min-height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px;
+  padding-block: 20px;
+}
+.scene {
+  width: min(100%, 980px);
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  position: relative;
+  touch-action: none;
+}
+.scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+
+.tray {
+  width: min(100%, 560px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: var(--chrome);
+  border: 1px solid var(--chrome-line);
+}
+.tray:empty { display: none; }
+.tray-group {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 2px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--paper);
+}
+.tray-item {
+  width: 58px; height: 58px;
+  padding: 3px;
+  border: 0; border-radius: 12px;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+  transition: transform .15s, opacity .2s;
+}
+.tray-item canvas { width: 100%; height: 100%; display: block; mix-blend-mode: multiply; pointer-events: none; }
+.tray-item:hover { transform: translateY(-2px) rotate(-3deg); }
+.tray-item.used { opacity: .25; cursor: default; transform: none; }
+.tray-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ghost {
+  position: fixed; left: 0; top: 0;
+  pointer-events: none;
+  z-index: 50;
+  translate: -50% -50%;
+  filter: drop-shadow(0 10px 14px rgba(40, 30, 10, .28));
+}
+.ghost canvas { width: 100%; height: 100%; display: block; }
+
+@media (prefers-reduced-motion: reduce) { .tray-item { transition: none; } }
+</style>
+
+<main class="app">
+  <div class="scene" id="scene" role="img" aria-label="Passport"></div>
+  <div class="tray" id="tray"></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+(async () => {
+  // ---------- data ----------
+  const REGIONS = [
+    ["middle-eastern", [
+      ["persian", "Persian", "scallop", "#1d4f86", "flower"],
+      ["levantine", "Levantine", "rect", "#2f6b34", "sun"],
+      ["turkish", "Turkish", "oval", "#a8322a", "crescent"],
+      ["yemeni", "Yemeni", "ticket", "#6a4422", "mountain"],
+      ["egyptian", "Egyptian", "octagon", "#1f6c6c", "wave"],
+      ["gulf", "Gulf", "arch", "#5a3a8a", "star"],
+      ["iraqi", "Iraqi", "circle", "#9a5418", "leaf"],
+    ]],
+    ["east-asian", [
+      ["japanese", "Japanese", "circle", "#b0302a", "sun"],
+      ["korean", "Korean", "octagon", "#1d4f86", "bowl"],
+      ["cantonese", "Cantonese", "scallop", "#2f6b34", "fish"],
+      ["sichuan", "Sichuan", "rect", "#a8322a", "chili"],
+      ["taiwanese", "Taiwanese", "oval", "#1f6c6c", "wave"],
+      ["mongolian", "Mongolian", "arch", "#6a4422", "mountain"],
+    ]],
+    ["south-asian", [
+      ["punjabi", "Punjabi", "scallop", "#9a5418", "sun"],
+      ["bengali", "Bengali", "circle", "#1f6c6c", "fish"],
+      ["keralan", "Keralan", "ticket", "#2f6b34", "leaf"],
+      ["sri-lankan", "Sri Lankan", "oval", "#a8322a", "chili"],
+      ["nepali", "Nepali", "arch", "#1d4f86", "mountain"],
+      ["gujarati", "Gujarati", "octagon", "#5a3a8a", "flower"],
+    ]],
+    ["mediterranean", [
+      ["greek", "Greek", "rect", "#1d4f86", "wave"],
+      ["sicilian", "Sicilian", "circle", "#9a5418", "sun"],
+      ["provencal", "Provençal", "scallop", "#5a3a8a", "flower"],
+      ["catalan", "Catalan", "octagon", "#a8322a", "fish"],
+      ["cypriot", "Cypriot", "oval", "#2f6b34", "leaf"],
+      ["maltese", "Maltese", "ticket", "#1f6c6c", "star"],
+    ]],
+    ["latin-american", [
+      ["oaxacan", "Oaxacan", "scallop", "#a8322a", "chili"],
+      ["yucatecan", "Yucatecan", "rect", "#2f6b34", "sun"],
+      ["peruvian", "Peruvian", "arch", "#6a4422", "mountain"],
+      ["brazilian", "Brazilian", "circle", "#1f6c6c", "leaf"],
+      ["argentine", "Argentine", "oval", "#1d4f86", "star"],
+      ["colombian", "Colombian", "octagon", "#9a5418", "bowl"],
+    ]],
+    ["african", [
+      ["ethiopian", "Ethiopian", "circle", "#2f6b34", "bowl"],
+      ["moroccan", "Moroccan", "octagon", "#a8322a", "star"],
+      ["senegalese", "Senegalese", "oval", "#1d4f86", "fish"],
+      ["nigerian", "Nigerian", "scallop", "#9a5418", "chili"],
+      ["tunisian", "Tunisian", "arch", "#1f6c6c", "sun"],
+      ["cape-malay", "Cape Malay", "rect", "#5a3a8a", "leaf"],
+    ]],
+    ["southeast-asian", [
+      ["thai", "Thai", "circle", "#a8322a", "chili"],
+      ["vietnamese", "Vietnamese", "oval", "#2f6b34", "leaf"],
+      ["malaysian", "Malaysian", "scallop", "#1d4f86", "fish"],
+      ["filipino", "Filipino", "rect", "#9a5418", "sun"],
+      ["indonesian", "Indonesian", "octagon", "#5a3a8a", "mountain"],
+      ["burmese", "Burmese", "arch", "#1f6c6c", "bowl"],
+    ]],
+    ["western-european", [
+      ["french", "French", "scallop", "#1d4f86", "flower"],
+      ["basque", "Basque", "rect", "#a8322a", "fish"],
+      ["belgian", "Belgian", "oval", "#6a4422", "bowl"],
+      ["portuguese", "Portuguese", "ticket", "#1f6c6c", "wave"],
+      ["alsatian", "Alsatian", "arch", "#2f6b34", "leaf"],
+      ["irish", "Irish", "circle", "#2f6b34", "star"],
+    ]],
+    ["nordic", [
+      ["swedish", "Swedish", "circle", "#1d4f86", "star"],
+      ["danish", "Danish", "rect", "#a8322a", "fish"],
+      ["norwegian", "Norwegian", "arch", "#1f6c6c", "mountain"],
+      ["finnish", "Finnish", "oval", "#2f6b34", "leaf"],
+      ["icelandic", "Icelandic", "octagon", "#5a3a8a", "wave"],
+      ["faroese", "Faroese", "ticket", "#6a4422", "wave"],
+    ]],
+    ["eastern-european", [
+      ["polish", "Polish", "scallop", "#a8322a", "flower"],
+      ["hungarian", "Hungarian", "oval", "#9a5418", "chili"],
+      ["georgian", "Georgian", "octagon", "#5a3a8a", "mountain"],
+      ["ukrainian", "Ukrainian", "circle", "#1d4f86", "sun"],
+      ["romanian", "Romanian", "rect", "#2f6b34", "leaf"],
+      ["czech", "Czech", "ticket", "#6a4422", "bowl"],
+    ]],
+    ["caribbean", [
+      ["jamaican", "Jamaican", "circle", "#2f6b34", "chili"],
+      ["cuban", "Cuban", "rect", "#a8322a", "sun"],
+      ["haitian", "Haitian", "oval", "#1d4f86", "wave"],
+      ["trinidadian", "Trinidadian", "scallop", "#9a5418", "fish"],
+      ["puerto-rican", "Puerto Rican", "arch", "#1f6c6c", "leaf"],
+      ["dominican", "Dominican", "octagon", "#5a3a8a", "star"],
+    ]],
+    ["north-american", [
+      ["cajun", "Cajun", "scallop", "#a8322a", "chili"],
+      ["southern", "Southern", "rect", "#6a4422", "bowl"],
+      ["tex-mex", "Tex-Mex", "oval", "#9a5418", "star"],
+      ["new-england", "New England", "ticket", "#1d4f86", "fish"],
+      ["californian", "Californian", "circle", "#2f6b34", "sun"],
+      ["quebecois", "Québécois", "arch", "#5a3a8a", "leaf"],
+    ]],
+  ].map(([id, list]) => ({ id, cuisines: list.map(([cid, name, shape, color, glyph]) => ({ id: cid, name, shape, color, glyph, region: id })) }));
+
+  const cuisineById = {};
+  REGIONS.forEach(r => r.cuisines.forEach(c => { cuisineById[c.id] = c; }));
+
+  // Default spots used when a stamp is tapped instead of dragged.
+  const SPOTS = [[.29, .24, -5], [.72, .22, 7], [.71, .46, -4], [.29, .5, 3], [.72, .7, 5], [.29, .76, -6], [.7, .9, 4]];
+
+  const STORE_KEY = "food-passport-stamps-v2";
+  const SEED = {
+    "middle-eastern": [
+      { cuisine: "persian", x: .3, y: .25, r: -4, date: "2026-10-02" },
+      { cuisine: "levantine", x: .71, y: .22, r: 5, date: "2026-09-21" },
+    ],
+  };
+  let stamps;
+  try { stamps = JSON.parse(localStorage.getItem(STORE_KEY)) || structuredClone(SEED); } catch (e) { stamps = structuredClone(SEED); }
+  const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(stamps)); } catch (e) {} };
+
+  const pad = n => String(n).padStart(2, "0");
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  const stampDate = iso => { const [y, m, d] = iso.split("-"); return `${d} ${MONTHS[+m - 1]} ${y.slice(2)}`; };
+
+  try { await document.fonts.load('700 16px "Barlow Condensed"'); } catch (e) {}
+
+  // ---------- textures: ink mask and paper grain ----------
+  function makeInkMask(size) {
+    const low = document.createElement("canvas");
+    low.width = low.height = 28;
+    const lc = low.getContext("2d");
+    const li = lc.createImageData(28, 28);
+    for (let i = 0; i < li.data.length; i += 4) { const v = Math.random() * 255; li.data[i] = li.data[i + 1] = li.data[i + 2] = v; li.data[i + 3] = 255; }
+    lc.putImageData(li, 0, 0);
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(low, 0, 0, size, size);
+    const img = ctx.getImageData(0, 0, size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const lum = img.data[i] / 255;
+      let a = Math.min(1, Math.max(0, (lum - .64) * 3)) * .85;
+      if (Math.random() < .07) a = Math.max(a, .55);
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 0;
+      img.data[i + 3] = a * 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+  function makeGrain(size, rgb, max) {
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const ctx = c.getContext("2d");
+    const img = ctx.createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2];
+      img.data[i + 3] = Math.random() * max;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+  const INK = makeInkMask(512);
+  const PAPER_GRAIN = makeGrain(256, [90, 68, 38], 26);
+  const COVER_GRAIN = makeGrain(256, [10, 30, 70], 30);
+
+  // ---------- stamp artwork (canvas, so it can be painted onto page textures) ----------
+  const C = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  const GLYPHS = {
+    sun: [C(60, 58, 8), "M60 42v-6M60 74v6M44 58h-6M76 58h6M48.7 46.7l-4.2-4.2M71.3 69.3l4.2 4.2M48.7 69.3l-4.2 4.2M71.3 46.7l4.2-4.2"],
+    wave: ["M40 50q5-6 10 0t10 0 10 0 10 0M40 58q5-6 10 0t10 0 10 0 10 0M40 66q5-6 10 0t10 0 10 0 10 0"],
+    leaf: ["M44 72c0-18 12-30 32-30 0 20-12 32-30 32", "M44 74l22-22"],
+    star: ["M60 40l4.7 12.3L77 54l-9.8 8.4L70 75l-10-7-10 7 2.8-12.6L43 54l12.3-1.7z"],
+    crescent: ["M66 41a17 17 0 1 0 0 34 14 14 0 1 1 0-34z", "M74 52l1.6 3.4 3.7.4-2.8 2.5.8 3.7-3.3-1.9-3.3 1.9.8-3.7-2.8-2.5 3.7-.4z"],
+    mountain: ["M38 72l14-22 8 11 6-8 16 19z", "M48 56l4-6 4 6"],
+    bowl: ["M40 58h40c0 11-9 17-20 17s-20-6-20-17z", "M52 50c-3-4 3-6 0-10M60 50c-3-4 3-6 0-10M68 50c-3-4 3-6 0-10"],
+    fish: ["M40 58c8-10 22-12 32 0-10 12-24 10-32 0z", "M72 58l9-7v14z", C(50, 56, 1.6)],
+    chili: ["M48 46c4 0 6 4 8 10 3 9 9 15 20 16-14 4-27-3-31-16-1-5 0-10 3-10z", "M48 46c0-4 2-6 6-7"],
+    flower: [C(60, 58, 4.5), "M60 53.5c-4-8 4-14 0-14-4 0 4 6 0 14M60 62.5c-4 8 4 14 0 14-4 0 4-6 0-14M55.5 58c-8-4-14 4-14 0 0-4 6 4 14 0M64.5 58c8-4 14 4 14 0 0-4-6 4-14 0"],
+  };
+  function lobes(cx, cy, r, bumps, depth) {
+    let d = "";
+    const steps = bumps * 12;
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI * 2, rr = r + depth * Math.cos(a * bumps);
+      d += (i ? "L" : "M") + (cx + rr * Math.cos(a)).toFixed(1) + " " + (cy + rr * Math.sin(a)).toFixed(1);
+    }
+    return d + "Z";
+  }
+  function polyPath(n, r, rot) {
+    const p = new Path2D();
+    for (let i = 0; i < n; i++) { const a = rot + (i / n) * Math.PI * 2; p[i ? "lineTo" : "moveTo"](60 + r * Math.cos(a), 60 + r * Math.sin(a)); }
+    p.closePath();
+    return p;
+  }
+  const circ = r => { const p = new Path2D(); p.arc(60, 60, r, 0, Math.PI * 2); return p; };
+  const rrect = (x, y, w, h, r) => { const p = new Path2D(); p.roundRect(x, y, w, h, r); return p; };
+  const ell = (rx, ry) => { const p = new Path2D(); p.ellipse(60, 60, rx, ry, 0, 0, Math.PI * 2); return p; };
+  const OUTLINES = {
+    circle: [circ(56), circ(49)],
+    scallop: [new Path2D(lobes(60, 60, 53, 14, 3.4)), circ(47)],
+    rect: [rrect(8, 14, 104, 92, 9), rrect(14, 20, 92, 80, 5)],
+    oval: [ell(57, 44), ell(50, 37)],
+    octagon: [polyPath(8, 57, Math.PI / 8), polyPath(8, 50, Math.PI / 8)],
+    arch: [new Path2D("M8 104V62a52 52 0 0 1 104 0v42z"), new Path2D("M15 98V62a45 45 0 0 1 90 0v36z")],
+    ticket: [new Path2D("M8 18h104v28a8 8 0 0 0 0 28v28H8V74a8 8 0 0 0 0-28z"), rrect(18, 25, 84, 70, 3)],
+  };
+  const font = size => `700 ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  function spacedText(ctx, text, cx, y, spacing) {
+    const ws = [...text].map(ch => ctx.measureText(ch).width);
+    let x = cx - (ws.reduce((a, b) => a + b, 0) + spacing * (ws.length - 1)) / 2;
+    ctx.textAlign = "left";
+    [...text].forEach((ch, i) => { ctx.fillText(ch, x, y); x += ws[i] + spacing; });
+  }
+  function arcText(ctx, text, r, spacing) {
+    const chars = [...text], ws = chars.map(ch => ctx.measureText(ch).width);
+    const total = ws.reduce((a, b) => a + b, 0) + spacing * (ws.length - 1);
+    let acc = 0;
+    ctx.textAlign = "center";
+    chars.forEach((ch, i) => {
+      const a = -Math.PI / 2 + (acc + ws[i] / 2 - total / 2) / r;
+      ctx.save();
+      ctx.translate(60 + r * Math.cos(a), 60 + r * Math.sin(a));
+      ctx.rotate(a + Math.PI / 2);
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      acc += ws[i] + spacing;
+    });
+  }
+  const hash = s => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+
+  const stampCache = new Map();
+  function stampCanvas(c, iso, px = 256) {
+    const key = c.id + iso + px;
+    if (stampCache.has(key)) return stampCache.get(key);
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = px;
+    const ctx = cv.getContext("2d");
+    ctx.scale(px / 120, px / 120);
+    ctx.strokeStyle = ctx.fillStyle = c.color;
+    ctx.lineJoin = "round";
+    const [outer, inner] = OUTLINES[c.shape];
+    ctx.lineWidth = 4; ctx.stroke(outer);
+    ctx.lineWidth = 1.4; ctx.stroke(inner);
+    const round = c.shape === "circle" || c.shape === "scallop";
+    ctx.save();
+    ctx.translate(0, round ? 2 : c.shape === "arch" ? 5 : 4);
+    ctx.lineWidth = 2.6; ctx.lineCap = "round";
+    GLYPHS[c.glyph].forEach(d => ctx.stroke(new Path2D(d)));
+    ctx.restore();
+    const name = c.name.toUpperCase(), date = stampDate(iso);
+    ctx.textBaseline = "alphabetic";
+    if (round) {
+      ctx.font = font(15); arcText(ctx, name, 35, 2);
+      ctx.font = font(12); spacedText(ctx, date, 60, 90, 1);
+    } else {
+      ctx.font = font(c.name.length > 8 ? 13.5 : 16); spacedText(ctx, name, 60, c.shape === "arch" ? 40 : 37, 1.4);
+      ctx.font = font(12); spacedText(ctx, date, 60, c.shape === "oval" ? 86 : 89, 1);
+    }
+    // uneven ink
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "destination-out";
+    const h = hash(c.id), ox = h % 256, oy = (h >> 8) % 256;
+    ctx.drawImage(INK, ox, oy, 256, 256, 0, 0, px, px);
+    stampCache.set(key, cv);
+    return cv;
+  }
+
+  // ---------- page faces ----------
+  const W = 1, H = 1.39;            // page size in world units
+  // Sizes set in screen pixels; converted to world units whenever the view is resized (see fit()).
+  const STACK_PX = 4;               // each sheet under the top one peeks out by this much at the fore-edge
+  const COVER_PX = 6;               // cover margin beyond the paper at top and bottom
+  const COVER_SIDE_PX = 8;          // cover margin beyond the top sheet at the outer edge
+  let STACK = .006, COVER_SIDE = .025;
+  let CW = 1.05, CH = 1.43;
+  const TEX_W = 900;
+
+  function makeFace(kind, spine, region) {
+    const w = kind === "page" ? W : CW, h = kind === "page" ? H : CH;
+    const canvas = document.createElement("canvas");
+    canvas.width = TEX_W;
+    canvas.height = Math.round(TEX_W * h / w);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.encoding = THREE.sRGBEncoding;
+    return { kind, spine, region, canvas, ctx: canvas.getContext("2d"), texture, hidden: null };
+  }
+
+  function facePath(f) {
+    const { width: w, height: h } = f.canvas;
+    const r = f.kind === "page" ? w * .05 : w * .056;
+    const p = new Path2D();
+    p.roundRect(0, 0, w, h, f.spine === "left" ? [0, r, r, 0] : [r, 0, 0, r]);
+    return p;
+  }
+
+  // A noisy cotton thread, drawn once into a narrow strip. Its noise is symmetric about the
+  // strip's centre line, so the left and right halves match where the pages meet.
+  const THREAD_W = 28;
+  let threadCache = null;
+  function threadStrip(h) {
+    if (threadCache && threadCache.height === h) return threadCache;
+    const c = document.createElement("canvas");
+    c.width = THREAD_W; c.height = h;
+    const ctx = c.getContext("2d"), cx = THREAD_W / 2;
+    ctx.lineCap = "round";
+    ctx.setLineDash([h * .04, h * .014]);
+    ctx.beginPath(); ctx.moveTo(cx, h * .025); ctx.lineTo(cx, h * .975);
+    ctx.strokeStyle = "rgba(60,44,24,.38)"; ctx.lineWidth = 10; ctx.stroke(); // shadow around the thread
+    ctx.strokeStyle = "#fbf7ef"; ctx.lineWidth = 6; ctx.stroke();             // thread
+    const img = ctx.getImageData(0, 0, THREAD_W, h), d = img.data;
+    const rnd = (x, y) => { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n); };
+    for (let y = 0; y < h; y++) for (let x = 0; x < THREAD_W; x++) {
+      const i = (y * THREAD_W + x) * 4;
+      if (!d[i + 3]) continue;
+      const k = rnd(Math.abs(x + .5 - cx), y);                // mirrored about the centre
+      const fiber = rnd(Math.abs(x + .5 - cx), Math.floor(y / 3)) * .18;
+      const f = .82 + k * .24 - fiber;
+      d[i] *= f; d[i + 1] *= f; d[i + 2] *= f;
+      d[i + 3] *= .7 + k * .3;
+    }
+    ctx.putImageData(img, 0, 0);
+    return (threadCache = c);
+  }
+
+  function drawFace(f) {
+    const { ctx, canvas } = f, w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.clip(facePath(f));
+    const spineX = f.spine === "left" ? 0 : w;
+    const grad = (a0, a1) => {
+      const g = ctx.createLinearGradient(spineX, 0, f.spine === "left" ? w * .12 : w * .88, 0);
+      g.addColorStop(0, a0); g.addColorStop(1, a1);
+      return g;
+    };
+    if (f.kind === "page") {
+      ctx.fillStyle = "#e9e0d0"; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = ctx.createPattern(PAPER_GRAIN, "repeat"); ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = grad("rgba(90,65,30,.22)", "rgba(90,65,30,0)"); ctx.fillRect(0, 0, w, h);
+      // Binding thread, only on the centre spread. It sits on the shared spine edge, so each of
+      // the two pages draws half and the halves meet in the middle.
+      if (f.stitch) ctx.drawImage(threadStrip(h), spineX - THREAD_W / 2, 0);
+      ctx.globalCompositeOperation = "multiply";
+      const size = w * .28;
+      (stamps[f.region] || []).forEach(s => {
+        if (f.hidden === s.cuisine) return;
+        ctx.save();
+        ctx.translate(s.x * w, s.y * h);
+        ctx.rotate(s.r * Math.PI / 180);
+        ctx.globalAlpha = .92;
+        ctx.drawImage(stampCanvas(cuisineById[s.cuisine], s.date), -size / 2, -size / 2, size, size);
+        ctx.restore();
+      });
+    } else {
+      ctx.fillStyle = f.kind === "cover" ? "#4a93ee" : "#3f84dc"; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = ctx.createPattern(COVER_GRAIN, "repeat"); ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = grad("rgba(10,30,70,.18)", "rgba(10,30,70,0)"); ctx.fillRect(0, 0, w, h);
+    }
+    ctx.restore();
+    f.texture.needsUpdate = true;
+  }
+
+  // Leaves: cover, three paper leaves (six pages), back cover.
+  const faces = [
+    [makeFace("cover", "left"), makeFace("inside", "right")],
+    // six paper leaves = 12 pages, one region per page
+    ...Array.from({ length: 6 }, (_, k) => [makeFace("page", "left", REGIONS[2 * k].id), makeFace("page", "right", REGIONS[2 * k + 1].id)]),
+    [makeFace("inside", "left"), makeFace("cover", "right")],
+  ];
+  // centre spread of the 12 pages: back of the third sheet (page 6) and front of the fourth (page 7)
+  faces[3][1].stitch = true;
+  faces[4][0].stitch = true;
+  faces.flat().forEach(drawFace);
+  const faceFor = regionId => faces.flat().find(f => f.region === regionId);
+
+  // ---------- three.js scene ----------
+  const scene = document.getElementById("scene");
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // supports shadow.radius blur
+  scene.appendChild(renderer.domElement);
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+  faces.flat().forEach(f => { f.texture.anisotropy = aniso; });
+
+  const world = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(18, 1.5, .1, 80);
+  world.add(new THREE.HemisphereLight(0xfffaf0, 0xb8b0a0, .98));
+  const sun = new THREE.DirectionalLight(0xffffff, .48);
+  sun.position.set(-.35, .55, 4); // nearly in line with the viewer, so a lifted page's shadow falls close beneath it
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024); // lower resolution + soft filtering = softer cast-shadow edges
+  sun.shadow.radius = 6;
+  Object.assign(sun.shadow.camera, { left: -2.4, right: 2.4, top: 2, bottom: -2, near: .5, far: 10 });
+  sun.shadow.bias = -.0015;
+  sun.shadow.normalBias = 0; // a normal offset pushes left-hand (back-face) pages into their own stack and darkens them
+  world.add(sun);
+  // Same light without shadows. Light moves between the two so shadows can fade without the
+  // page getting brighter or darker.
+  const SUN = .34;
+  const fill = new THREE.DirectionalLight(0xffffff, 0);
+  fill.position.copy(sun.position);
+  world.add(fill);
+  let shadowAmt = 1;
+
+  const book = new THREE.Group();
+  book.rotation.x = 0; // face the camera head-on, no tilt
+  world.add(book);
+
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 6), new THREE.ShadowMaterial({ opacity: .16 }));
+  catcher.position.z = -.012;
+  catcher.receiveShadow = true;
+  book.add(catcher);
+
+  const SEG_X = 44, SEG_Y = 12, EPS = .0045;
+  const n = faces.length;
+  const GUTTER = .3, GUTTER_LIFT = 1.15; // width of the curved zone at the spine (share of the page), and its starting angle
+
+  // Soft shadow each sheet casts on whatever lies beneath it.
+  const SH_M = .05; // shadow margin around the sheet, world units
+  const shadowTex = (() => {
+    const s = 600 / (W + 2 * SH_M);
+    const c = document.createElement("canvas");
+    c.width = 600; c.height = Math.round((H + 2 * SH_M) * s);
+    const ctx = c.getContext("2d");
+    const p = new Path2D(), r = .05 * W * s, far = 10000;
+    p.roundRect(SH_M * s - far, SH_M * s, W * s, H * s, [0, r, r, 0]);
+    ctx.shadowColor = "rgba(40,28,10,.3)";
+    ctx.shadowBlur = .022 * s;
+    ctx.shadowOffsetX = far + .004 * s;
+    ctx.shadowOffsetY = .005 * s;
+    ctx.fillStyle = "#000";
+    ctx.fill(p);
+    // Fade it out over the curved spine area, where the sheet dips below the shadow's height.
+    ctx.shadowColor = "transparent";
+    ctx.globalCompositeOperation = "destination-in";
+    const fade = ctx.createLinearGradient(SH_M * s, 0, SH_M * s + W * s, 0);
+    fade.addColorStop(0, "rgba(0,0,0,0)");
+    fade.addColorStop(GUTTER, "rgba(0,0,0,0)");
+    fade.addColorStop(Math.min(1, GUTTER + .12), "#000");
+    fade.addColorStop(1, "#000");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, c.width, c.height);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    return t;
+  })();
+  const shadowGeo = new THREE.PlaneGeometry(W + 2 * SH_M, H + 2 * SH_M);
+
+  const leaves = faces.map(([front, back], i) => {
+    const isCover = i === 0 || i === n - 1;
+    const w = isCover ? CW : W, h = isCover ? CH : H;
+    const geo = new THREE.PlaneGeometry(1, 1, SEG_X, SEG_Y);
+    const frontMat = new THREE.MeshStandardMaterial({ map: front.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.FrontSide });
+    frontMat.shadowSide = THREE.DoubleSide;
+    back.texture.repeat.x = -1;
+    back.texture.offset.x = 1;
+    const backMat = new THREE.MeshStandardMaterial({ map: back.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.BackSide });
+    const fm = new THREE.Mesh(geo, frontMat), bm = new THREE.Mesh(geo, backMat);
+    fm.castShadow = true;
+    // cast the sheet's real rounded outline, not a square
+    fm.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: front.texture, alphaTest: .5, side: THREE.DoubleSide });
+    fm.receiveShadow = bm.receiveShadow = true;
+    book.add(fm, bm);
+    const meshes = [fm, bm];
+    let shadow = null;
+    if (!isCover) {
+      shadow = new THREE.Mesh(shadowGeo, new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+      book.add(shadow);
+    }
+    return { i, isCover, w, h, geo, meshes, shadow, frontMat, backMat, off: 0, shade: 1, gutAmt: 0, restZ: 0, shadowFade: 1, t: 0, from: 0, to: 0, start: 0, dur: 1, dir: 1, ease: p => p, grab: .5, dirty: true };
+  });
+
+  let flipped = 0; // leaves lying on the left
+  const DURATION = matchMedia("(prefers-reduced-motion: reduce)").matches ? 320 : 1050;
+  const ease = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  const easeOut = p => 1 - Math.pow(1 - p, 3);
+
+  // Bend each row of the sheet along an arc-length curve hinged at the spine.
+  // The free edge leads the turn, and the row nearest the click leads most, so the sheet curls diagonally.
+  // Keep an angle between 0 and π with rounded ends (k = how gradual the rounding is).
+  const smin = (a, b, k) => Math.min(a, b) - k * Math.log1p(Math.exp(-Math.abs(a - b) / k));
+  const smax = (a, b, k) => Math.max(a, b) + k * Math.log1p(Math.exp(-Math.abs(a - b) / k));
+  function softClamp(x, k) { return smax(smin(x, Math.PI, k), 0, k); }
+  function deform(leaf) {
+    const { geo, h, t, i } = leaf;
+    const w = leaf.w + Math.abs(leaf.off); // lower sheets reach a little further out; the spine edge never moves
+    const pos = geo.attributes.position;
+    const theta = t * Math.PI;
+    const dir = leaf.dir;
+    // Softness: how far the free edge leads the spine side, and how much of the sheet takes part in the curl.
+    const soft = leaf.isCover ? { bend: .6, power: 2.2 } : { bend: 2, power: 1.6 };
+    const bend = soft.bend * Math.sin(Math.PI * t);
+    // While turning, ease the sheet into flat instead of folding it at a hard limit, which made a creased, bright wedge.
+    soft.k = .22 * Math.sin(Math.PI * t) + 1e-4;
+    const zRight = (n - i) * EPS, zLeft = (i + 1) * EPS;
+    const zOff = zRight + (zLeft - zRight) * t;
+    const step = w / SEG_X;
+    // The spine curve dips the paper into the binding rather than raising it, so the flat part
+    // of each sheet stays at its resting height and the stacked edges and shadows line up.
+    let rise = 0;
+    for (let k = 0; k < SEG_X; k++) {
+      const sAbs = (k + .5) / SEG_X * w / W;
+      if (sAbs <= GUTTER) rise += Math.sin(GUTTER_LIFT * Math.pow(1 - sAbs / GUTTER, 2)) * step;
+    }
+    const dip = leaf.gutAmt * rise * Math.abs(Math.cos(theta));
+    for (let j = 0; j <= SEG_Y; j++) {
+      const v = 1 - j / SEG_Y;
+      const y = (v - .5) * h;
+      const lead = 1 + .55 * (leaf.grab * 2 - 1) * (v * 2 - 1);
+      let x = 0, z = 0;
+      for (let k = 0; k <= SEG_X; k++) {
+        pos.setXYZ(j * (SEG_X + 1) + k, x, y, z + zOff - dip);
+        const s = (k + .5) / SEG_X;
+        // Paper rises out of the binding and levels off, like an open book's gutter.
+        // cos(theta) points it up on either side and fades it out mid-turn.
+        const sAbs = s * w / W;
+        const gut = sAbs > GUTTER ? 0 : leaf.gutAmt * GUTTER_LIFT * Math.pow(1 - sAbs / GUTTER, 2) * Math.cos(theta);
+        const phi = softClamp(theta + gut + dir * bend * lead * Math.pow(s, soft.power), soft.k);
+        x += Math.cos(phi) * step;
+        z += Math.sin(phi) * step;
+      }
+    }
+    leaf.restZ = pos.getZ(Math.floor(SEG_Y / 2) * (SEG_X + 1) + SEG_X); // height of the flat part, for its shadow
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+  }
+
+  function flipTo(leaf, to, grab, opts = {}) {
+    leaf.from = leaf.t;
+    leaf.to = to;
+    leaf.start = performance.now();
+    leaf.grab = grab;
+    leaf.dir = opts.dir ?? (to >= leaf.t ? 1 : -1);
+    leaf.dur = opts.dur ?? DURATION;
+    leaf.ease = opts.ease ?? ease;
+  }
+  function next(grab = .5) { if (flipped < n) { flipTo(leaves[flipped], 1, grab); flipped++; afterFlip(); } }
+  function prev(grab = .5) { if (flipped > 0) { flipped--; flipTo(leaves[flipped], 0, grab); afterFlip(); } }
+  const atRest = leaf => leaf.t === leaf.to && !leaf.held; // a sheet held mid-drag is not at rest
+
+  // Faces lying open right now.
+  function openFaces() {
+    const out = [];
+    if (flipped > 0) out.push({ face: faces[flipped - 1][1], leaf: leaves[flipped - 1], side: "left" });
+    if (flipped < n) out.push({ face: faces[flipped][0], leaf: leaves[flipped], side: "right" });
+    return out;
+  }
+
+  let shift = -W / 2, shiftTarget = -W / 2;
+  function afterFlip() {
+    shiftTarget = flipped === 0 ? -W / 2 : flipped === n ? W / 2 : 0;
+    renderTray();
+  }
+
+  function fit() {
+    const w = scene.clientWidth, h = scene.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    // Fit the open book with room for a page lifted toward the camera mid-turn,
+    // which appears larger than when it lies flat.
+    const d = Math.max(.94 / tan, 1.14 / (tan * camera.aspect));
+    camera.position.set(0, 0, d);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    const pxPerUnit = w / (2 * d * tan * camera.aspect);
+    STACK = STACK_PX / pxPerUnit;
+    COVER_SIDE = COVER_SIDE_PX / pxPerUnit;
+    CH = H + 2 * COVER_PX / pxPerUnit;
+    leaves.filter(l => l.isCover).forEach(l => { l.h = CH; l.dirty = true; });
+  }
+  new ResizeObserver(fit).observe(scene);
+  fit();
+
+  renderer.setAnimationLoop(now => {
+    leaves.forEach(leaf => {
+      if (leaf.t !== leaf.to) {
+        const p = Math.min(1, (now - leaf.start) / leaf.dur);
+        leaf.t = p >= 1 ? leaf.to : leaf.from + (leaf.to - leaf.from) * leaf.ease(Math.max(0, p));
+        if (p >= 1) { leaf.from = leaf.to; renderTray(); }
+        leaf.dirty = true;
+      }
+      if (leaf.dirty) { deform(leaf); leaf.dirty = false; }
+    });
+    // Stack the paper: each page under the top one sits a little further out and a little darker.
+    const paperLast = n - 2;
+    leaves.forEach(leaf => {
+      if (leaf.isCover) return;
+      let depth;
+      if (leaf.i >= flipped) depth = leaf.i - Math.max(flipped, 1);
+      else depth = Math.min(flipped - 1, paperLast) - leaf.i;
+      const side = leaf.i >= flipped ? 1 : -1;
+      const off = side * depth * STACK, shade = 1 - Math.min(.15, depth * .03);
+      const nextOff = leaf.off + (off - leaf.off) * .18;
+      if (Math.abs(nextOff - leaf.off) > 1e-6) leaf.dirty = true;
+      leaf.off = Math.abs(off - nextOff) < 1e-5 ? off : nextOff;
+      leaf.shade += (shade - leaf.shade) * .18;
+      leaf.frontMat.color.setScalar(leaf.shade);
+      leaf.backMat.color.setScalar(leaf.shade);
+      // the shadow lies just under the sheet while it is flat, and fades out while it turns
+      const sh = leaf.shadow, onRight = leaf.t < .5;
+      const closed = flipped === 0 || flipped === n;
+      sh.visible = !closed;
+      // Gone the moment the sheet lifts; fades back in only after it has fully landed.
+      leaf.shadowFade = atRest(leaf) ? Math.min(1, leaf.shadowFade + .08) : 0;
+      sh.material.opacity = leaf.shadowFade;
+      const reach = W + Math.abs(leaf.off);
+      sh.scale.x = (onRight ? 1 : -1) * reach / W;
+      sh.position.set((onRight ? 1 : -1) * reach / 2, 0, (onRight ? n - leaf.i : leaf.i + 1) * EPS - EPS * .5); // just under the sheet's resting height
+    });
+    // The spine curve only exists while the book is open. The cover dips with the paper so it
+    // stays underneath; only its thin margin at top and bottom shows the bend.
+    const open = flipped > 0 && flipped < n;
+    leaves.forEach(leaf => {
+      const target = open ? 1 : 0;
+      if (Math.abs(target - leaf.gutAmt) > 1e-4) { leaf.gutAmt += (target - leaf.gutAmt) * .12; leaf.dirty = true; }
+      else if (leaf.gutAmt !== target) { leaf.gutAmt = target; leaf.dirty = true; }
+    });
+    // Covers grow with the pile on their side, so they always show COVER_SIDE_PX past the outermost sheet.
+    const rightSheets = Math.max(0, n - 1 - Math.max(flipped, 1));
+    const leftSheets = Math.max(0, Math.min(flipped - 1, n - 2));
+    leaves.forEach(leaf => {
+      if (!leaf.isCover) return;
+      const onRight = leaf.i === 0 ? flipped === 0 : flipped < n;
+      const sheets = onRight ? rightSheets : leftSheets;
+      const target = W + Math.max(0, sheets - 1) * STACK + COVER_SIDE;
+      if (Math.abs(target - leaf.w) > 1e-5) { leaf.w += (target - leaf.w) * .18; leaf.dirty = true; }
+    });
+    // Fade cast shadows out as a sheet is about to touch down (or has just lifted), where the
+    // shadow between two nearly touching sheets would flicker; bring them back once it settles.
+    let target = 1;
+    leaves.forEach(leaf => {
+      // Only a moving sheet casts a shadow (plus the covers, for the shadow on the desk).
+      // Sheets lying still never shade each other; their stacked-edge shadows handle that.
+      leaf.meshes[0].castShadow = leaf.isCover || !atRest(leaf);
+      if (atRest(leaf)) return;
+      const e = Math.min(1, Math.min(leaf.t, 1 - leaf.t) / .15);
+      target = Math.min(target, e * e * (3 - 2 * e));
+    });
+    shadowAmt = target < shadowAmt ? target : shadowAmt + (target - shadowAmt) * .06;
+    sun.intensity = SUN * shadowAmt;
+    fill.intensity = SUN * (1 - shadowAmt);
+    shift += (shiftTarget - shift) * .08;
+    book.position.x = shift;
+    renderer.render(world, camera);
+  });
+
+  // ---------- hit testing ----------
+  const ray = new THREE.Raycaster();
+  const plane = new THREE.Plane();
+  // Pointer position on the book's plane, in book coordinates.
+  function planePoint(clientX, clientY) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera({ x: ((clientX - r.left) / r.width) * 2 - 1, y: -((clientY - r.top) / r.height) * 2 + 1 }, camera);
+    book.updateMatrixWorld();
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(book.quaternion);
+    plane.setFromNormalAndCoplanarPoint(normal, book.position);
+    const p = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(plane, p)) return null;
+    return book.worldToLocal(p);
+  }
+  function hit(clientX, clientY) {
+    const p = planePoint(clientX, clientY);
+    if (!p) return null;
+    const side = p.x >= 0 ? "right" : "left";
+    const open = openFaces().find(o => o.side === side);
+    if (!open) return null;
+    const w = open.leaf.w, h = open.leaf.h;
+    if (Math.abs(p.x) > w || Math.abs(p.y) > h / 2) return null;
+    return { ...open, u: side === "right" ? p.x / w : (p.x + w) / w, v: (h / 2 - p.y) / h, grab: p.y / h + .5 };
+  }
+  function screenPageWidth() {
+    const a = book.localToWorld(new THREE.Vector3(0, 0, 0)).project(camera);
+    const b = book.localToWorld(new THREE.Vector3(W, 0, 0)).project(camera);
+    return Math.abs(b.x - a.x) / 2 * renderer.domElement.getBoundingClientRect().width;
+  }
+
+  // ---------- tray ----------
+  const tray = document.getElementById("tray");
+  function renderTray() {
+    const regions = openFaces().filter(o => o.face.region && atRest(o.leaf)).map(o => REGIONS.find(r => r.id === o.face.region));
+    const key = regions.map(r => r.id + ":" + (stamps[r.id] || []).map(s => s.cuisine).join("+")).join("|");
+    if (tray.dataset.key === key) return;
+    tray.dataset.key = key;
+    tray.innerHTML = "";
+    regions.forEach(region => {
+      const have = new Set((stamps[region.id] || []).map(s => s.cuisine));
+      const g = document.createElement("div");
+      g.className = "tray-group";
+      region.cuisines.forEach(c => {
+        const b = document.createElement("button");
+        b.className = "tray-item" + (have.has(c.id) ? " used" : "");
+        b.dataset.cuisine = c.id;
+        b.setAttribute("aria-label", c.name);
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 128;
+        cv.getContext("2d").drawImage(stampCanvas(c, today()), 0, 0, 128, 128);
+        b.appendChild(cv);
+        g.appendChild(b);
+      });
+      tray.appendChild(g);
+    });
+  }
+  renderTray();
+
+  function placeStamp(regionId, cuisine, x, y, r) {
+    const list = (stamps[regionId] ||= []);
+    const s = list.find(s => s.cuisine === cuisine);
+    if (s) Object.assign(s, { x, y, r });
+    else list.push({ cuisine, x, y, r, date: today() });
+    save();
+    drawFace(faceFor(regionId));
+    renderTray();
+  }
+  function removeStamp(regionId, cuisine) {
+    stamps[regionId] = (stamps[regionId] || []).filter(s => s.cuisine !== cuisine);
+    save();
+    drawFace(faceFor(regionId));
+    renderTray();
+  }
+
+  // ---------- pointer: click a page to turn it, drag stamps ----------
+  let drag = null, press = null;
+
+  function startDrag(e, cuisine, fromPage) {
+    const c = cuisineById[cuisine];
+    const existing = (stamps[c.region] || []).find(s => s.cuisine === cuisine);
+    const ghost = document.createElement("div");
+    ghost.className = "ghost";
+    const size = screenPageWidth() * .28;
+    ghost.style.width = ghost.style.height = size + "px";
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 256;
+    cv.getContext("2d").drawImage(stampCanvas(c, existing ? existing.date : today()), 0, 0);
+    ghost.appendChild(cv);
+    const rot = existing ? existing.r : Math.random() * 16 - 8;
+    ghost.style.rotate = rot + "deg";
+    document.body.appendChild(ghost);
+    drag = { cuisine, region: c.region, fromPage, ghost, rot, x0: e.clientX, y0: e.clientY, moved: false, pointerId: e.pointerId };
+    if (fromPage) { const f = faceFor(c.region); f.hidden = cuisine; drawFace(f); }
+    moveGhost(e);
+  }
+  function moveGhost(e) {
+    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 4) drag.moved = true;
+    drag.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+  }
+  function endDrag(e) {
+    const d = drag;
+    drag = null;
+    d.ghost.remove();
+    const f = faceFor(d.region);
+    f.hidden = null;
+    const h = hit(e.clientX, e.clientY);
+    if (d.moved && h && h.face.region === d.region && atRest(h.leaf)) {
+      placeStamp(d.region, d.cuisine, Math.min(.88, Math.max(.12, h.u)), Math.min(.9, Math.max(.1, h.v)), d.rot);
+    } else if (d.moved && d.fromPage && !h) {
+      removeStamp(d.region, d.cuisine);
+    } else {
+      drawFace(f);
+    }
+    return d;
+  }
+
+  function stampAt(h) {
+    const list = stamps[h.face.region] || [];
+    const aspect = h.leaf.h / h.leaf.w;
+    for (let k = list.length - 1; k >= 0; k--) {
+      const s = list[k];
+      if (Math.hypot(h.u - s.x, (h.v - s.y) * aspect) < .13) return s;
+    }
+    return null;
+  }
+
+  renderer.domElement.addEventListener("pointerdown", e => {
+    if (e.button > 0) return;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) {}
+    const h = hit(e.clientX, e.clientY);
+    if (h && h.face.region && atRest(h.leaf)) {
+      const s = stampAt(h);
+      if (s) { startDrag(e, s.cuisine, true); return; }
+    }
+    press = { x: e.clientX, y: e.clientY, id: e.pointerId, h };
+  });
+
+  // ---------- dragging a page ----------
+  let pageDrag = null;
+  function startPageDrag(h) {
+    const right = h.side === "right";
+    const leaf = right ? leaves[flipped] : leaves[flipped - 1];
+    if (!leaf || !atRest(leaf)) return null;
+    const x0 = right ? leaf.w : -leaf.w; // treat the grab as if it started at the free edge
+    leaf.dir = right ? 1 : -1;
+    leaf.grab = h.grab;
+    leaf.from = leaf.to = leaf.t;
+    leaf.held = true;
+    return { leaf, right, x0, samples: [] };
+  }
+  function movePageDrag(e) {
+    const p = planePoint(e.clientX, e.clientY);
+    if (!p) return;
+    const d = pageDrag, w = d.leaf.w;
+    // Map the pointer's x across the spread to turn progress: free edge = 0, opposite edge = 1.
+    let prog = d.right ? (w - p.x) / (2 * w) : (p.x + w) / (2 * w);
+    prog = Math.min(1, Math.max(0, prog));
+    const t = d.right ? prog : 1 - prog;
+    d.leaf.t = d.leaf.to = d.leaf.from = t;
+    d.leaf.grab = Math.min(1, Math.max(0, p.y / d.leaf.h + .5));
+    d.leaf.dirty = true;
+    d.samples.push({ t: performance.now(), prog });
+    if (d.samples.length > 6) d.samples.shift();
+  }
+  function endPageDrag() {
+    const d = pageDrag;
+    pageDrag = null;
+    const leaf = d.leaf;
+    leaf.held = false;
+    const prog = d.right ? leaf.t : 1 - leaf.t;
+    const a = d.samples[0], b = d.samples[d.samples.length - 1];
+    const speed = a && b && b.t > a.t ? (b.prog - a.prog) / (b.t - a.t) * 1000 : 0; // progress per second
+    const complete = speed > .9 || (speed > -.9 && prog > .4);
+    const target = complete ? (d.right ? 1 : 0) : (d.right ? 0 : 1);
+    const remaining = Math.abs(target - leaf.t);
+    flipTo(leaf, target, leaf.grab, { dir: d.right ? 1 : -1, dur: Math.max(220, DURATION * .8 * remaining), ease: easeOut });
+    if (complete) { flipped += d.right ? 1 : -1; afterFlip(); }
+  }
+
+  tray.addEventListener("pointerdown", e => {
+    const b = e.target.closest(".tray-item");
+    if (!b || b.classList.contains("used") || e.button > 0) return;
+    e.preventDefault();
+    try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    startDrag(e, b.dataset.cuisine, false);
+  });
+
+  window.addEventListener("pointermove", e => {
+    if (drag && e.pointerId === drag.pointerId) { moveGhost(e); return; }
+    if (pageDrag && press && e.pointerId === press.id) { movePageDrag(e); return; }
+    if (press && press.h && e.pointerId === press.id && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+      pageDrag = startPageDrag(press.h);
+      if (pageDrag) movePageDrag(e);
+      else press = null;
+    }
+  });
+  window.addEventListener("pointerup", e => {
+    if (drag && e.pointerId === drag.pointerId) {
+      const d = endDrag(e);
+      if (!d.moved && !d.fromPage) tapPlace(d.cuisine);
+      return;
+    }
+    if (pageDrag && press && press.id === e.pointerId) { endPageDrag(); press = null; return; }
+    if (press && press.id === e.pointerId) {
+      const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+      const h = moved < 8 ? hit(press.x, press.y) : null;
+      press = null;
+      if (!h) return;
+      if (h.side === "right") next(h.grab); else prev(h.grab);
+    }
+  });
+  window.addEventListener("pointercancel", () => {
+    if (drag) { drag.ghost.remove(); const f = faceFor(drag.region); f.hidden = null; drawFace(f); drag = null; }
+    if (pageDrag) { const d = pageDrag; pageDrag = null; d.leaf.held = false; flipTo(d.leaf, d.right ? 0 : 1, d.leaf.grab, { dir: d.right ? 1 : -1, dur: 300, ease: easeOut }); }
+    press = null;
+  });
+
+  // A tap on a tray stamp puts it in its default spot.
+  function tapPlace(cuisine) {
+    const c = cuisineById[cuisine];
+    const open = openFaces().find(o => o.face.region === c.region && atRest(o.leaf));
+    if (!open) return;
+    const idx = REGIONS.find(r => r.id === c.region).cuisines.indexOf(c);
+    const [x, y, r] = SPOTS[idx % SPOTS.length];
+    placeStamp(c.region, cuisine, x, y, r + Math.random() * 6 - 3);
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") next();
+    if (e.key === "ArrowLeft") prev();
+  });
+})();
+</script>
