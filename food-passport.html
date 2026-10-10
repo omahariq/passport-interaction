@@ -411,7 +411,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       g.addColorStop(0, a0); g.addColorStop(1, a1);
       return g;
     };
-    if (f.kind === "page") {
+    if (f.kind !== "cover") { // pages, and the inner side of the covers, which is lined with the same paper
       ctx.fillStyle = "#e9e0d0"; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = ctx.createPattern(PAPER_GRAIN, "repeat"); ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = grad("rgba(90,65,30,.22)", "rgba(90,65,30,0)"); ctx.fillRect(0, 0, w, h);
