@@ -198,6 +198,41 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 
   try { await document.fonts.load('700 16px "Barlow Condensed"'); } catch (e) {}
 
+  // ---------- cover emblem ----------
+  // The artwork on the front cover. Swap `src` for any SVG (or PNG) file, or a data: URL.
+  // `color` recolours the whole shape (set it to null to keep the file's own colours);
+  // `size` is the emblem's width as a share of the cover width, `y` its centre as a share of the height.
+  const COVER_EMBLEM = { src: "emblems/globe.svg", color: "#c8a45c", size: .483, y: .5 };
+  async function loadEmblem({ src, color }) {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    if (!color) return img;
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = Math.round(1024 * img.naturalHeight / img.naturalWidth);
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = color; ctx.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  let emblem = null;
+  try { emblem = await loadEmblem(COVER_EMBLEM); } catch (e) {} // no emblem if the file is missing
+
+  // The word under the emblem. `font` is any Google Fonts family (loaded on demand) or a font the
+  // page already has; `size` is the cap height's share of the cover width, `y` the baseline as a
+  // share of the height, `tracking` the letter spacing in em.
+  const COVER_TITLE = { text: "PASSPORT", font: "Bricolage Grotesque", weight: 400, color: "#c8a45c", size: .05, y: .78, tracking: .18 };
+  async function loadFont({ font, weight }) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, "+")}:wght@${weight}&display=block`;
+    await new Promise(done => { link.onload = link.onerror = done; document.head.appendChild(link); });
+    await document.fonts.load(`${weight} 40px "${font}"`);
+  }
+  try { await loadFont(COVER_TITLE); } catch (e) {} // falls back to the next available font
+  const isFrontCover = f => f.kind === "cover" && f.spine === "left";
+
   // ---------- textures: ink mask and paper grain ----------
   function makeInkMask(size) {
     const low = document.createElement("canvas");
@@ -356,7 +391,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     canvas.height = Math.round(TEX_W * h / w);
     const texture = new THREE.CanvasTexture(canvas);
     texture.encoding = THREE.sRGBEncoding;
-    return { kind, spine, region, canvas, ctx: canvas.getContext("2d"), texture, hidden: null };
+    return { kind, spine, region, canvas, ctx: canvas.getContext("2d"), texture, hidden: null, stretch: 1 };
   }
 
   function facePath(f) {
@@ -434,6 +469,32 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       noise.setTransform(new DOMMatrix().scale(2.5)); // coarse enough to survive the texture being shrunk on screen
       ctx.fillStyle = noise; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = grad("rgba(0,0,0,.18)", "rgba(0,0,0,0)"); ctx.fillRect(0, 0, w, h);
+      if (isFrontCover(f)) {
+        // Front cover art, pressed into the cover: a dark edge below, the foil on top.
+        // The cover mesh is wider than its texture (it grows with the page stack), so squeeze the
+        // art horizontally by the same factor to keep it in proportion.
+        ctx.save();
+        ctx.translate(w / 2, 0); ctx.scale(1 / f.stretch, 1); ctx.translate(-w / 2, 0);
+        const pressed = draw => {
+          ctx.save();
+          ctx.globalAlpha = .55; ctx.filter = "brightness(0)"; ctx.translate(0, w * .002);
+          draw();
+          ctx.restore();
+          draw();
+        };
+        if (emblem) {
+          const ew = w * COVER_EMBLEM.size, eh = ew * emblem.height / emblem.width;
+          pressed(() => ctx.drawImage(emblem, (w - ew) / 2, h * COVER_EMBLEM.y - eh / 2, ew, eh));
+        }
+        const t = COVER_TITLE, px = w * t.size / .72; // cap height is roughly .72 of the font size
+        ctx.font = `${t.weight} ${px}px "${t.font}", sans-serif`;
+        ctx.letterSpacing = `${t.tracking * px}px`;
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = t.color;
+        // letter spacing also trails the last letter, so shift right by half of it to stay centred
+        pressed(() => ctx.fillText(t.text, w / 2 + t.tracking * px / 2, h * t.y));
+        ctx.restore();
+      }
       if (f.kind === "cover") {
         // Edge lighting so the cover reads as a raised, slightly rounded object: light from the top,
         // so the top edge catches it and the outer (free) edge and the bottom fall into shade.
@@ -742,6 +803,8 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       const sheets = onRight ? rightSheets : leftSheets;
       const target = W + Math.max(0, sheets - 1) * STACK;
       if (Math.abs(target - leaf.w) > 1e-5) { leaf.w += (target - leaf.w) * .18; leaf.dirty = true; }
+      const f = faces[leaf.i][0];
+      if (isFrontCover(f) && Math.abs(f.stretch - leaf.w / W) > 1e-3) { f.stretch = leaf.w / W; drawFace(f); }
     });
     // Fade cast shadows out as a sheet is about to touch down (or has just lifted), where the
     // shadow between two nearly touching sheets would flicker; bring them back once it settles.
