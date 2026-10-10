@@ -365,7 +365,9 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const { width: w, height: h } = f.canvas;
     const r = f.kind === "page" ? w * .05 : w * .056;
     const p = new Path2D();
-    p.roundRect(0, 0, w, h, f.spine === "left" ? [0, r, r, 0] : [r, 0, 0, r]);
+    // spine-side corners: square on pages, a 2px (on screen) radius on the covers
+    const sp = f.kind === "page" ? 0 : w * .0065;
+    p.roundRect(0, 0, w, h, f.spine === "left" ? [sp, r, r, sp] : [r, sp, sp, r]);
     return p;
   }
 
@@ -434,6 +436,30 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       noise.setTransform(new DOMMatrix().scale(2.5)); // coarse enough to survive the texture being shrunk on screen
       ctx.fillStyle = noise; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = grad("rgba(0,0,0,.18)", "rgba(0,0,0,0)"); ctx.fillRect(0, 0, w, h);
+      if (f.kind === "cover") {
+        // Edge lighting so the cover reads as a raised, slightly rounded object: light from the top,
+        // so the top edge catches it and the outer (free) edge and the bottom fall into shade.
+        const freeX = f.spine === "left" ? w : 0, dir = f.spine === "left" ? -1 : 1;
+        const edge = (x0, y0, x1, y1, stops) => {
+          const g = ctx.createLinearGradient(x0, y0, x1, y1);
+          stops.forEach(([o, c]) => g.addColorStop(o, c));
+          ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+        };
+        // top edge: thin bright rim, then a soft glow fading down
+        edge(0, 0, 0, h * .12, [[0, "rgba(255,255,255,.5)"], [.04, "rgba(255,255,255,.26)"], [1, "rgba(255,255,255,0)"]]);
+        // bottom edge: dark
+        edge(0, h, 0, h * .88, [[0, "rgba(0,0,0,.50)"], [.12, "rgba(0,0,0,.28)"], [1, "rgba(0,0,0,0)"]]);
+        // outer edge: dark rim...
+        edge(freeX, 0, freeX + dir * w * .035, 0, [[0, "rgba(0,0,0,.50)"], [.3, "rgba(0,0,0,.28)"], [1, "rgba(0,0,0,0)"]]);
+        // ...and a wide, soft falloff over the outer third, as if the cover curves away
+        edge(freeX, 0, freeX + dir * w * .38, 0, [[0, "rgba(0,0,0,.30)"], [.5, "rgba(0,0,0,.10)"], [1, "rgba(0,0,0,0)"]]);
+        // spine edge: the cover turns round the stack of pages. From the rim inward: a bright rolled
+        // edge catching the light, a dark crease where it folds, then a shadow fading onto the face.
+        edge(spineX, 0, spineX - dir * w * .1, 0, [
+          [0, "rgba(255,255,255,.45)"], [.1, "rgba(255,255,255,.28)"], [.17, "rgba(0,0,0,.2)"],
+          [.24, "rgba(0,0,0,.85)"], [.5, "rgba(0,0,0,.5)"], [1, "rgba(0,0,0,0)"],
+        ]);
+      }
     }
     ctx.restore();
     f.texture.needsUpdate = true;
