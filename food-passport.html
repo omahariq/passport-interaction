@@ -345,10 +345,8 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   const W = 1, H = 1.39;            // page size in world units
   // Sizes set in screen pixels; converted to world units whenever the view is resized (see fit()).
   const STACK_PX = 4;               // each sheet under the top one peeks out by this much at the fore-edge
-  const COVER_PX = 6;               // cover margin beyond the paper at top and bottom
-  const COVER_SIDE_PX = 8;          // cover margin beyond the top sheet at the outer edge
-  let STACK = .006, COVER_SIDE = .025;
-  let CW = 1.05, CH = 1.43;
+  let STACK = .006;
+  const CW = W, CH = H;             // covers are the same size as the pages
   const TEX_W = 900;
 
   function makeFace(kind, spine, region) {
@@ -363,7 +361,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 
   function facePath(f) {
     const { width: w, height: h } = f.canvas;
-    const r = f.kind === "page" ? w * .05 : w * .056;
+    const r = w * .05;
     const p = new Path2D();
     // spine-side corners: square on pages, a 2px (on screen) radius on the covers
     const sp = f.kind === "page" ? 0 : w * .0065;
@@ -513,7 +511,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   book.rotation.x = 0; // face the camera head-on, no tilt
   world.add(book);
 
-  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 6), new THREE.ShadowMaterial({ opacity: .16 }));
+  const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 6), new THREE.ShadowMaterial({ opacity: .1 }));
   catcher.position.z = -.012;
   catcher.receiveShadow = true;
   book.add(catcher);
@@ -531,20 +529,21 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const ctx = c.getContext("2d");
     const p = new Path2D(), r = .05 * W * s, far = 10000;
     p.roundRect(SH_M * s - far, SH_M * s, W * s, H * s, [0, r, r, 0]);
-    ctx.shadowColor = "rgba(40,28,10,.15)";
+    ctx.shadowColor = "rgba(40,28,10,.07)"; // light, since the shadows of the stacked sheets add up
     ctx.shadowBlur = .022 * s;
     ctx.shadowOffsetX = far + .004 * s;
     ctx.shadowOffsetY = .005 * s;
     ctx.fillStyle = "#000";
     ctx.fill(p);
-    // Fade it out over the curved spine area, where the sheet dips below the shadow's height.
+    // Fade it out toward the spine, where the sheet dips below the shadow's height. The ramp is
+    // long and eased so the shadow emerges gradually instead of starting at a hard line.
     ctx.shadowColor = "transparent";
     ctx.globalCompositeOperation = "destination-in";
     const fade = ctx.createLinearGradient(SH_M * s, 0, SH_M * s + W * s, 0);
-    fade.addColorStop(0, "rgba(0,0,0,0)");
-    fade.addColorStop(GUTTER, "rgba(0,0,0,0)");
-    fade.addColorStop(Math.min(1, GUTTER + .12), "#000");
-    fade.addColorStop(1, "#000");
+    for (let k = 0; k <= 8; k++) {
+      const x = k / 8, e = x * x * (3 - 2 * x);
+      fade.addColorStop(GUTTER * .5 + x * (.9 - GUTTER * .5), `rgba(0,0,0,${e})`);
+    }
     ctx.fillStyle = fade;
     ctx.fillRect(0, 0, c.width, c.height);
     const t = new THREE.CanvasTexture(c);
@@ -686,9 +685,6 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     camera.updateProjectionMatrix();
     const pxPerUnit = w / (2 * d * tan * camera.aspect);
     STACK = STACK_PX / pxPerUnit;
-    COVER_SIDE = COVER_SIDE_PX / pxPerUnit;
-    CH = H + 2 * COVER_PX / pxPerUnit;
-    leaves.filter(l => l.isCover).forEach(l => { l.h = CH; l.dirty = true; });
   }
   new ResizeObserver(fit).observe(scene);
   fit();
@@ -737,14 +733,14 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
       if (Math.abs(target - leaf.gutAmt) > 1e-4) { leaf.gutAmt += (target - leaf.gutAmt) * .12; leaf.dirty = true; }
       else if (leaf.gutAmt !== target) { leaf.gutAmt = target; leaf.dirty = true; }
     });
-    // Covers grow with the pile on their side, so they always show COVER_SIDE_PX past the outermost sheet.
+    // Covers grow with the pile on their side, so they stay flush with the outermost sheet.
     const rightSheets = Math.max(0, n - 1 - Math.max(flipped, 1));
     const leftSheets = Math.max(0, Math.min(flipped - 1, n - 2));
     leaves.forEach(leaf => {
       if (!leaf.isCover) return;
       const onRight = leaf.i === 0 ? flipped === 0 : flipped < n;
       const sheets = onRight ? rightSheets : leftSheets;
-      const target = W + Math.max(0, sheets - 1) * STACK + COVER_SIDE;
+      const target = W + Math.max(0, sheets - 1) * STACK;
       if (Math.abs(target - leaf.w) > 1e-5) { leaf.w += (target - leaf.w) * .18; leaf.dirty = true; }
     });
     // Fade cast shadows out as a sheet is about to touch down (or has just lifted), where the
