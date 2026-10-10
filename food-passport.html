@@ -74,103 +74,61 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 <script>
 (async () => {
   // ---------- data ----------
+  // The 30 most visited countries, two or three to a page, grouped by neighbourhood.
   const REGIONS = [
-    ["middle-eastern", [
-      ["persian", "Persian", "scallop", "#1d4f86", "flower"],
-      ["levantine", "Levantine", "rect", "#2f6b34", "sun"],
-      ["turkish", "Turkish", "oval", "#a8322a", "crescent"],
-      ["yemeni", "Yemeni", "ticket", "#6a4422", "mountain"],
-      ["egyptian", "Egyptian", "octagon", "#1f6c6c", "wave"],
-      ["gulf", "Gulf", "arch", "#5a3a8a", "star"],
-      ["iraqi", "Iraqi", "circle", "#9a5418", "leaf"],
+    ["western-europe", [
+      ["france", "France", "circle", "#1d4f86", "eiffel"],
+      ["uk", "United Kingdom", "scallop", "#a8322a", "bigben"],
+      ["netherlands", "Netherlands", "rect", "#9a5418", "windmill"],
     ]],
-    ["east-asian", [
-      ["japanese", "Japanese", "circle", "#b0302a", "sun"],
-      ["korean", "Korean", "octagon", "#1d4f86", "bowl"],
-      ["cantonese", "Cantonese", "scallop", "#2f6b34", "fish"],
-      ["sichuan", "Sichuan", "rect", "#a8322a", "chili"],
-      ["taiwanese", "Taiwanese", "oval", "#1f6c6c", "wave"],
-      ["mongolian", "Mongolian", "arch", "#6a4422", "mountain"],
+    ["rhine-alps", [
+      ["germany", "Germany", "ticket", "#6a4422", "brandenburg"],
+      ["switzerland", "Switzerland", "scallop", "#a8322a", "swiss"],
     ]],
-    ["south-asian", [
-      ["punjabi", "Punjabi", "scallop", "#9a5418", "sun"],
-      ["bengali", "Bengali", "circle", "#1f6c6c", "fish"],
-      ["keralan", "Keralan", "ticket", "#2f6b34", "leaf"],
-      ["sri-lankan", "Sri Lankan", "oval", "#a8322a", "chili"],
-      ["nepali", "Nepali", "arch", "#1d4f86", "mountain"],
-      ["gujarati", "Gujarati", "octagon", "#5a3a8a", "flower"],
+    ["iberia-italy", [
+      ["spain", "Spain", "octagon", "#a8322a", "fan"],
+      ["portugal", "Portugal", "rect", "#1f6c6c", "tram"],
+      ["italy", "Italy", "circle", "#2f6b34", "pisa"],
     ]],
-    ["mediterranean", [
-      ["greek", "Greek", "rect", "#1d4f86", "wave"],
-      ["sicilian", "Sicilian", "circle", "#9a5418", "sun"],
-      ["provencal", "Provençal", "scallop", "#5a3a8a", "flower"],
-      ["catalan", "Catalan", "octagon", "#a8322a", "fish"],
-      ["cypriot", "Cypriot", "oval", "#2f6b34", "leaf"],
-      ["maltese", "Maltese", "ticket", "#1f6c6c", "star"],
+    ["aegean-adriatic", [
+      ["greece", "Greece", "arch", "#1d4f86", "temple"],
+      ["croatia", "Croatia", "oval", "#a8322a", "checks"],
     ]],
-    ["latin-american", [
-      ["oaxacan", "Oaxacan", "scallop", "#a8322a", "chili"],
-      ["yucatecan", "Yucatecan", "rect", "#2f6b34", "sun"],
-      ["peruvian", "Peruvian", "arch", "#6a4422", "mountain"],
-      ["brazilian", "Brazilian", "circle", "#1f6c6c", "leaf"],
-      ["argentine", "Argentine", "oval", "#1d4f86", "star"],
-      ["colombian", "Colombian", "octagon", "#9a5418", "bowl"],
+    ["central-europe", [
+      ["austria", "Austria", "scallop", "#a8322a", "notes"],
+      ["czechia", "Czechia", "rect", "#9a5418", "beer"],
+      ["poland", "Poland", "circle", "#5a3a8a", "pierogi"],
     ]],
-    ["african", [
-      ["ethiopian", "Ethiopian", "circle", "#2f6b34", "bowl"],
-      ["moroccan", "Moroccan", "octagon", "#a8322a", "star"],
-      ["senegalese", "Senegalese", "oval", "#1d4f86", "fish"],
-      ["nigerian", "Nigerian", "scallop", "#9a5418", "chili"],
-      ["tunisian", "Tunisian", "arch", "#1f6c6c", "sun"],
-      ["cape-malay", "Cape Malay", "rect", "#5a3a8a", "leaf"],
+    ["danube-bosphorus", [
+      ["hungary", "Hungary", "ticket", "#2f6b34", "chili"],
+      ["turkiye", "Türkiye", "octagon", "#a8322a", "crescent"],
     ]],
-    ["southeast-asian", [
-      ["thai", "Thai", "circle", "#a8322a", "chili"],
-      ["vietnamese", "Vietnamese", "oval", "#2f6b34", "leaf"],
-      ["malaysian", "Malaysian", "scallop", "#1d4f86", "fish"],
-      ["filipino", "Filipino", "rect", "#9a5418", "sun"],
-      ["indonesian", "Indonesian", "octagon", "#5a3a8a", "mountain"],
-      ["burmese", "Burmese", "arch", "#1f6c6c", "bowl"],
+    ["north-africa-arabia", [
+      ["egypt", "Egypt", "arch", "#9a5418", "pyramids"],
+      ["morocco", "Morocco", "octagon", "#1f6c6c", "tagine"],
+      ["saudi-arabia", "Saudi Arabia", "circle", "#2f6b34", "palm"],
     ]],
-    ["western-european", [
-      ["french", "French", "scallop", "#1d4f86", "flower"],
-      ["basque", "Basque", "rect", "#a8322a", "fish"],
-      ["belgian", "Belgian", "oval", "#6a4422", "bowl"],
-      ["portuguese", "Portuguese", "ticket", "#1f6c6c", "wave"],
-      ["alsatian", "Alsatian", "arch", "#2f6b34", "leaf"],
-      ["irish", "Irish", "circle", "#2f6b34", "star"],
+    ["gulf-india", [
+      ["uae", "UAE", "ticket", "#6a4422", "burj"],
+      ["india", "India", "scallop", "#9a5418", "taj"],
     ]],
-    ["nordic", [
-      ["swedish", "Swedish", "circle", "#1d4f86", "star"],
-      ["danish", "Danish", "rect", "#a8322a", "fish"],
-      ["norwegian", "Norwegian", "arch", "#1f6c6c", "mountain"],
-      ["finnish", "Finnish", "oval", "#2f6b34", "leaf"],
-      ["icelandic", "Icelandic", "octagon", "#5a3a8a", "wave"],
-      ["faroese", "Faroese", "ticket", "#6a4422", "wave"],
+    ["east-asia", [
+      ["china", "China", "octagon", "#a8322a", "lantern"],
+      ["japan", "Japan", "circle", "#b0302a", "torii"],
+      ["south-korea", "South Korea", "rect", "#1d4f86", "taegeuk"],
     ]],
-    ["eastern-european", [
-      ["polish", "Polish", "scallop", "#a8322a", "flower"],
-      ["hungarian", "Hungarian", "oval", "#9a5418", "chili"],
-      ["georgian", "Georgian", "octagon", "#5a3a8a", "mountain"],
-      ["ukrainian", "Ukrainian", "circle", "#1d4f86", "sun"],
-      ["romanian", "Romanian", "rect", "#2f6b34", "leaf"],
-      ["czech", "Czech", "ticket", "#6a4422", "bowl"],
+    ["indochina", [
+      ["thailand", "Thailand", "rect", "#5a3a8a", "elephant"],
+      ["vietnam", "Vietnam", "arch", "#2f6b34", "hat"],
     ]],
-    ["caribbean", [
-      ["jamaican", "Jamaican", "circle", "#2f6b34", "chili"],
-      ["cuban", "Cuban", "rect", "#a8322a", "sun"],
-      ["haitian", "Haitian", "oval", "#1d4f86", "wave"],
-      ["trinidadian", "Trinidadian", "scallop", "#9a5418", "fish"],
-      ["puerto-rican", "Puerto Rican", "arch", "#1f6c6c", "leaf"],
-      ["dominican", "Dominican", "octagon", "#5a3a8a", "star"],
+    ["malay-peninsula", [
+      ["malaysia", "Malaysia", "circle", "#1d4f86", "petronas"],
+      ["singapore", "Singapore", "octagon", "#a8322a", "marinabay"],
     ]],
-    ["north-american", [
-      ["cajun", "Cajun", "scallop", "#a8322a", "chili"],
-      ["southern", "Southern", "rect", "#6a4422", "bowl"],
-      ["tex-mex", "Tex-Mex", "oval", "#9a5418", "star"],
-      ["new-england", "New England", "ticket", "#1d4f86", "fish"],
-      ["californian", "Californian", "circle", "#2f6b34", "sun"],
-      ["quebecois", "Québécois", "arch", "#5a3a8a", "leaf"],
+    ["north-america", [
+      ["usa", "United States", "scallop", "#1d4f86", "liberty"],
+      ["canada", "Canada", "oval", "#a8322a", "maple"],
+      ["mexico", "Mexico", "arch", "#2f6b34", "cactus"],
     ]],
   ].map(([id, list]) => ({ id, cuisines: list.map(([cid, name, shape, color, glyph]) => ({ id: cid, name, shape, color, glyph, region: id })) }));
 
@@ -180,11 +138,11 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   // Default spots used when a stamp is tapped instead of dragged.
   const SPOTS = [[.29, .24, -5], [.72, .22, 7], [.71, .46, -4], [.29, .5, 3], [.72, .7, 5], [.29, .76, -6], [.7, .9, 4]];
 
-  const STORE_KEY = "food-passport-stamps-v2";
+  const STORE_KEY = "food-passport-stamps-v3";
   const SEED = {
-    "middle-eastern": [
-      { cuisine: "persian", x: .3, y: .25, r: -4, date: "2026-10-02" },
-      { cuisine: "levantine", x: .71, y: .22, r: 5, date: "2026-09-21" },
+    "western-europe": [
+      { cuisine: "france", x: .3, y: .25, r: -4, date: "2026-10-02" },
+      { cuisine: "uk", x: .71, y: .22, r: 5, date: "2026-09-21" },
     ],
   };
   let stamps;
@@ -276,17 +234,46 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 
   // ---------- stamp artwork (canvas, so it can be painted onto page textures) ----------
   const C = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  // n short strokes fanned between angles a0 and a1 (degrees), from radius r1 out to r2
+  const rays = (cx, cy, r1, r2, a0, a1, n) => Array.from({ length: n }, (_, i) => {
+    const a = (a0 + (a1 - a0) * i / (n - 1)) * Math.PI / 180, x = Math.cos(a), y = Math.sin(a);
+    return `M${(cx + r1 * x).toFixed(1)} ${(cy + r1 * y).toFixed(1)}L${(cx + r2 * x).toFixed(1)} ${(cy + r2 * y).toFixed(1)}`;
+  }).join("");
+  // One symbol per country, drawn in a 120×120 box inside roughly x 38–82, y 37–77.
+  // Paths are stroked; a leading "*" fills (even-odd) instead, and a leading "#" clips what follows.
   const GLYPHS = {
-    sun: [C(60, 58, 8), "M60 42v-6M60 74v6M44 58h-6M76 58h6M48.7 46.7l-4.2-4.2M71.3 69.3l4.2 4.2M48.7 69.3l-4.2 4.2M71.3 46.7l4.2-4.2"],
-    wave: ["M40 50q5-6 10 0t10 0 10 0 10 0M40 58q5-6 10 0t10 0 10 0 10 0M40 66q5-6 10 0t10 0 10 0 10 0"],
-    leaf: ["M44 72c0-18 12-30 32-30 0 20-12 32-30 32", "M44 74l22-22"],
-    star: ["M60 40l4.7 12.3L77 54l-9.8 8.4L70 75l-10-7-10 7 2.8-12.6L43 54l12.3-1.7z"],
-    crescent: ["M66 41a17 17 0 1 0 0 34 14 14 0 1 1 0-34z", "M74 52l1.6 3.4 3.7.4-2.8 2.5.8 3.7-3.3-1.9-3.3 1.9.8-3.7-2.8-2.5 3.7-.4z"],
-    mountain: ["M38 72l14-22 8 11 6-8 16 19z", "M48 56l4-6 4 6"],
-    bowl: ["M40 58h40c0 11-9 17-20 17s-20-6-20-17z", "M52 50c-3-4 3-6 0-10M60 50c-3-4 3-6 0-10M68 50c-3-4 3-6 0-10"],
-    fish: ["M40 58c8-10 22-12 32 0-10 12-24 10-32 0z", "M72 58l9-7v14z", C(50, 56, 1.6)],
+    eiffel: ["M47 77C53 67 56 56 58 46M73 77C67 67 64 56 62 46", "M57 46h6M60 46v-8", "M51.5 67h17M55 57h10", "M53 77q7-9 14 0"],
+    bigben: ["M53 77V49h14v28", "M52 49l8-11 8 11", C(60, 56, 4.5), "M60 56v-2.6M60 56h2.2", "M57 65v9M63 65v9"],
+    windmill: ["M55 77l2.5-19h5l2.5 19z", "M57 51L47 41l3-3 10 10M63 51l10-10 3 3-10 10M63 57l10 10-3 3-10-10M57 57L47 67l-3-3 10-10", C(60, 54, 2)],
+    brandenburg: ["M42 50h36v-4H42z", "M53 46v-4h14v4M57 42v-3h6v3", "M45 50v25M51 50v25M57 50v25M63 50v25M69 50v25M75 50v25", "M40 76h40"],
+    swiss: ["*M44 41h32v32H44zM56 46h8v7h7v8h-7v7h-8v-7h-7v-8h7z"],
+    fan: ["M60 74L36.6 60.5A27 27 0 0 1 83.4 60.5Z", "M60 74L75.9 52.2M60 74L65.6 47.6M60 74L54.4 47.6M60 74L44.1 52.2", "M51.3 69A10 10 0 0 1 68.7 69"],
+    tram: ["M45 70V52q0-4 4-4h22q4 0 4 4v18z", "M49 53h6v6h-6zM57 53h6v6h-6zM65 53h6v6h-6z", "M45 64h30", "M60 48l5-9M54 39h16", C(52, 72, 2.4), C(68, 72, 2.4), "M41 76h38"],
+    pisa: ["M53 77l4-34h12l-4 34z", "M56.3 49h12M55.6 55h12M54.9 61h12M54.2 67h12M53.6 72h12", "M58.6 43l.6-5h7.6l-.6 5"],
+    temple: ["M42 50l18-10 18 10z", "M42 50h36v3H42z", "M46 53v18M53 53v18M60 53v18M67 53v18M74 53v18", "M42 71h36M40 75h40"],
+    checks: ["M44 41h32v20c0 8-8 13-16 16-8-3-16-8-16-16z", "#M44 41h32v20c0 8-8 13-16 16-8-3-16-8-16-16z",
+      "*M44 41h8v8h-8zM60 41h8v8h-8zM52 49h8v8h-8zM68 49h8v8h-8zM44 57h8v8h-8zM60 57h8v8h-8zM52 65h8v8h-8zM68 65h8v8h-8zM44 73h8v8h-8zM60 73h8v8h-8z"],
+    notes: ["*" + C(50, 70, 4.5), "*" + C(70, 66, 4.5), "M54.5 70V45M74.5 66V41", "*M54.5 45l20-4v5l-20 4z"],
+    beer: ["M46 47h20v27q0 3-3 3H49q-3 0-3-3z", "M66 53h5q4 0 4 4v6q0 4-4 4h-5", "M45 47c-1-5 4-8 8-5 2-4 8-4 10 0 4-2 6 1 4 5", "M52 53v18M60 53v18"],
+    pierogi: ["M41 68a19 19 0 0 1 38 0z", rays(60, 68, 19, 23.5, -170, -10, 9), "M38 73h44"],
     chili: ["M48 46c4 0 6 4 8 10 3 9 9 15 20 16-14 4-27-3-31-16-1-5 0-10 3-10z", "M48 46c0-4 2-6 6-7"],
-    flower: [C(60, 58, 4.5), "M60 53.5c-4-8 4-14 0-14-4 0 4 6 0 14M60 62.5c-4 8 4 14 0 14-4 0 4-6 0-14M55.5 58c-8-4-14 4-14 0 0-4 6 4 14 0M64.5 58c8-4 14 4 14 0 0-4-6 4-14 0"],
+    crescent: ["M66 41a17 17 0 1 0 0 34 14 14 0 1 1 0-34z", "M74 52l1.6 3.4 3.7.4-2.8 2.5.8 3.7-3.3-1.9-3.3 1.9.8-3.7-2.8-2.5 3.7-.4z"],
+    pyramids: ["M38 76l17-26 17 26", "M66.1 66.9L70 61l10 15", "M55 50l3 26", "M36 76h48", C(76, 45, 3.5)],
+    tagine: ["M40 69h40c-2 5-8 8-20 8s-18-3-20-8z", "M44 69c6-4 10-13 14-23h4c4 10 8 19 14 23", "M58 46c-2-2-1-5 2-6 3 1 4 4 2 6", "M51 62h18"],
+    palm: ["M60 77c1-9 1-19 0-28", "M60 49c-4-5-12-7-18-3M60 49c-6-1-12 3-14 9M60 49c4-5 12-7 18-3M60 49c6-1 12 3 14 9M60 49c-1-5 1-9 4-11",
+      "M43 62c6 9 18 14 34 13M77 62c-6 9-18 14-34 13", "M75 72l3 5M45 72l-3 5"],
+    burj: ["M60 37v6", "M59 43L58 50H56L55 57H53L52 65H50L49 77H71L70 65H68L67 57H65L64 50H62L61 43Z", "M60 47v30", "M40 77h40"],
+    taj: ["M50 60c0-8 4-12 10-16 6 4 10 8 10 16z", "M60 44v-5", "M46 60h28v17H46z", "M56 77v-8a4 4 0 0 1 8 0v8", "M41 77V50M79 77V50M39 50h4M77 50h4M41 50v-4M79 50v-4"],
+    lantern: ["M46 55c0-7 6-10 14-10s14 3 14 10v4c0 7-6 10-14 10s-14-3-14-10z", "M54 45v-3h12v3M54 69v3h12v-3", "M60 45v24M53 46c-4 6-4 16 0 22M67 46c4 6 4 16 0 22", "M60 42v-4", "M57.5 72v5M60 72v5M62.5 72v5"],
+    torii: ["M38 42c8 3 36 3 44 0l-1 4c-8 2-34 2-42 0z", "M43 53h34", "M47 46v31M73 46v31", "M60 47v6"],
+    taegeuk: [C(60, 57, 15), "*M45 57A15 15 0 0 1 75 57A7.5 7.5 0 0 1 60 57A7.5 7.5 0 0 0 45 57Z"],
+    elephant: ["M44 75V62c0-8 6-12 14-12h8c7 0 11 4 11 10v4c0 5 1 8 4 9l-1 2c-4-1-6-4-7-9l-1 9h-6v-7H52v7z", "M64 52c-4 2-5 8-1 11 3 1 5-1 6-3", "*" + C(71, 56, 1), "M44 62c-2 1-3 3-3 6"],
+    hat: ["M38 66L60 44l22 22", "M38 66c6 4 38 4 44 0", "M60 44l-8 24M60 44l8 24", "M49 69c3 7 19 7 22 0"],
+    petronas: ["M47 77V55l1.5-4v-5l1.5-4h2l1.5 4v5l1.5 4v22M51 42v-5", "M65 77V55l1.5-4v-5l1.5-4h2l1.5 4v5l1.5 4v22M69 42v-5", "M55 61h10M57 61l3-4 3 4", "M42 77h36"],
+    marinabay: ["M46 70V48h6v22M57 70V48h6v22M68 70V48h6v22", "M40 45h38l3-3", "M40 75q2.5-2 5 0t5 0 5 0 5 0 5 0 5 0 5 0 5 0"],
+    liberty: ["M60 38c-5 5-6 9-3 12h6c3-3 2-7-3-12z", "M53 51h14l-3 6h-8z", "M57.5 57h5l-1 17h-3z", "M50 44l-3-2M70 44l3-2M48 51h-3M72 51h3"],
+    maple: ["*M60 37L63.5 44L66.5 42.5L65.5 53L71 47L72.5 50.5L78 49.5L76 56L79 57.5L70 65L71 68L61 67L61 75L59 75L59 67L49 68L50 65L41 57.5L44 56L42 49.5L47.5 50.5L49 47L54.5 53L53.5 42.5L56.5 44Z"],
+    cactus: ["M56 77V45a4 4 0 0 1 8 0v32", "M56 64h-5a4 4 0 0 1-4-4v-8", "M64 58h5a4 4 0 0 0 4-4v-7", "M42 77h36"],
   };
   function lobes(cx, cy, r, bumps, depth) {
     let d = "";
@@ -316,6 +303,14 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     ticket: [new Path2D("M8 18h104v28a8 8 0 0 0 0 28v28H8V74a8 8 0 0 0 0-28z"), rrect(18, 25, 84, 70, 3)],
   };
   const font = size => `700 ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  const textWidth = (ctx, text, spacing) => [...text].reduce((w, ch) => w + ctx.measureText(ch).width, 0) + spacing * ([...text].length - 1);
+  // Steps the font down until the text fits, so long country names stay inside the frame.
+  function fitFont(ctx, text, size, maxW, spacing) {
+    for (; size > 9; size -= .5) { ctx.font = font(size); if (textWidth(ctx, text, spacing) <= maxW) return; }
+    ctx.font = font(size);
+  }
+  // Room for a straight name line in each frame; round frames curve it along an arc instead.
+  const NAME_W = { rect: 82, ticket: 76, octagon: 74, oval: 64, arch: 64 };
   function spacedText(ctx, text, cx, y, spacing) {
     const ws = [...text].map(ch => ctx.measureText(ch).width);
     let x = cx - (ws.reduce((a, b) => a + b, 0) + spacing * (ws.length - 1)) / 2;
@@ -354,17 +349,23 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     ctx.lineWidth = 1.4; ctx.stroke(inner);
     const round = c.shape === "circle" || c.shape === "scallop";
     ctx.save();
-    ctx.translate(0, round ? 2 : c.shape === "arch" ? 5 : 4);
-    ctx.lineWidth = 2.6; ctx.lineCap = "round";
-    GLYPHS[c.glyph].forEach(d => ctx.stroke(new Path2D(d)));
+    // Fit the symbol's box (centred on y 57) into the space left between the name and the date.
+    const k = c.shape === "arch" ? .8 : .85, cy = round ? 58 : c.shape === "arch" ? 62 : 60;
+    ctx.translate(60, cy); ctx.scale(k, k); ctx.translate(-60, -57);
+    ctx.lineWidth = 2.6 / k; ctx.lineCap = "round";
+    GLYPHS[c.glyph].forEach(d => {
+      if (d[0] === "*") ctx.fill(new Path2D(d.slice(1)), "evenodd");
+      else if (d[0] === "#") ctx.clip(new Path2D(d.slice(1)));
+      else ctx.stroke(new Path2D(d));
+    });
     ctx.restore();
     const name = c.name.toUpperCase(), date = stampDate(iso);
     ctx.textBaseline = "alphabetic";
     if (round) {
-      ctx.font = font(15); arcText(ctx, name, 35, 2);
+      fitFont(ctx, name, 15, 100, 2); arcText(ctx, name, 35, 2);
       ctx.font = font(12); spacedText(ctx, date, 60, 90, 1);
     } else {
-      ctx.font = font(c.name.length > 8 ? 13.5 : 16); spacedText(ctx, name, 60, c.shape === "arch" ? 40 : 37, 1.4);
+      fitFont(ctx, name, 16, NAME_W[c.shape], 1.4); spacedText(ctx, name, 60, c.shape === "arch" ? 40 : 37, 1.4);
       ctx.font = font(12); spacedText(ctx, date, 60, c.shape === "oval" ? 86 : 89, 1);
     }
     // uneven ink
