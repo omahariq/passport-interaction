@@ -30,25 +30,17 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 }
 .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
 
+/* One row of stamps, no card. Its height is reserved even when empty, so the passport above never shifts. */
 .tray {
-  width: min(100%, 560px);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
-  padding: 8px;
-  border-radius: 18px;
-  background: var(--chrome);
-  border: 1px solid var(--chrome-line);
+  width: min(100%, 980px);
+  height: 64px;
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: center;
+  gap: 6px;
 }
-.tray:empty { display: none; }
-.tray-group {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 2px;
-  padding: 8px;
-  border-radius: 12px;
-  background: var(--paper);
-}
+.tray-group { display: contents; }
 .tray-item {
-  width: 58px; height: 58px;
+  flex: 0 1 58px; min-width: 0;
+  aspect-ratio: 1;
   padding: 3px;
   border: 0; border-radius: 12px;
   background: none;
