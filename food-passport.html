@@ -10,6 +10,7 @@
   --chrome-line: #e2dfd7;
   --accent: #d9541e;
   --paper: #e8dfcf;
+  --control: #9a958c;
   color-scheme: light;
 }
 
@@ -34,24 +35,40 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 .tray {
   width: min(100%, 980px);
   height: 64px;
-  display: flex; flex-wrap: nowrap; align-items: center; justify-content: center;
+  display: flex; flex-wrap: nowrap; align-items: flex-end; justify-content: center;
   gap: 6px;
 }
 .tray-group { display: contents; }
+/* Dock-style magnification: --s is set from the pointer's distance, and growing the flex basis
+   (rather than a transform) is what pushes the neighbours aside. Items grow upward from the bottom. */
 .tray-item {
-  flex: 0 1 58px; min-width: 0;
+  flex: 0 1 calc(58px * var(--s, 1)); min-width: 0;
   aspect-ratio: 1;
   padding: 3px;
   border: 0; border-radius: 12px;
   background: none;
   cursor: grab;
   touch-action: none;
-  transition: transform .15s, opacity .2s;
+  transition: flex-basis .12s ease-out, opacity .2s;
 }
 .tray-item canvas { width: 100%; height: 100%; display: block; mix-blend-mode: multiply; pointer-events: none; }
-.tray-item:hover { transform: translateY(-2px) rotate(-3deg); }
-.tray-item.used { opacity: .25; cursor: default; transform: none; }
+.tray-item.used { opacity: .25; cursor: default; }
 .tray-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Reset: a quiet icon button pinned to the top right corner. */
+.reset {
+  position: fixed; top: 16px; right: 16px; z-index: 10;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 1px solid var(--control); border-radius: 50%;
+  background: var(--desk);
+  color: var(--control);
+  cursor: pointer;
+}
+.reset svg { width: 16px; height: 16px; display: block; }
+.reset:hover { background: var(--chrome); }
+.reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .ghost {
   position: fixed; left: 0; top: 0;
@@ -62,13 +79,16 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 }
 .ghost canvas { width: 100%; height: 100%; display: block; }
 
-@media (prefers-reduced-motion: reduce) { .tray-item { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .tray-item { transition: opacity .2s; } }
 </style>
 
 <main class="app">
   <div class="scene" id="scene" role="img" aria-label="Passport"></div>
   <div class="tray" id="tray"></div>
 </main>
+<button class="reset" id="reset" type="button" aria-label="Reset stamps" title="Reset stamps">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+</button>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -861,6 +881,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 
   // ---------- tray ----------
   const tray = document.getElementById("tray");
+  let restCenters = null; // resting centres of the tray stamps while the pointer magnifies them
   function renderTray() {
     const regions = openFaces().filter(o => o.face.region && atRest(o.leaf)).map(o => REGIONS.find(r => r.id === o.face.region));
     const have = new Set(Object.values(stamps).flat().map(s => s.cuisine)); // placed on any page
@@ -868,6 +889,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     if (tray.dataset.key === key) return;
     tray.dataset.key = key;
     tray.innerHTML = "";
+    restCenters = null;
     regions.forEach(region => {
       const g = document.createElement("div");
       g.className = "tray-group";
@@ -1022,6 +1044,28 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     if (complete) { flipped += d.right ? 1 : -1; afterFlip(); }
   }
 
+  // Magnify the stamps under a mouse pointer like the macOS Dock. Distances are measured to each
+  // stamp's resting centre, captured before anything grows, so the row doesn't chase the pointer.
+  const MAG = { max: .6, reach: 150 };
+  function unmagnify() {
+    restCenters = null;
+    tray.querySelectorAll(".tray-item").forEach(b => b.style.removeProperty("--s"));
+  }
+  tray.addEventListener("pointermove", e => {
+    if (e.pointerType !== "mouse" || drag) { if (restCenters) unmagnify(); return; }
+    const items = [...tray.querySelectorAll(".tray-item")];
+    if (!restCenters || restCenters.length !== items.length) {
+      items.forEach(b => b.style.removeProperty("--s"));
+      restCenters = items.map(b => { const r = b.getBoundingClientRect(); return r.left + r.width / 2; });
+    }
+    items.forEach((b, i) => {
+      const d = Math.abs(e.clientX - restCenters[i]);
+      const s = d < MAG.reach ? 1 + MAG.max * (1 + Math.cos(Math.PI * d / MAG.reach)) / 2 : 1;
+      b.style.setProperty("--s", s.toFixed(3));
+    });
+  });
+  tray.addEventListener("pointerleave", unmagnify);
+
   tray.addEventListener("pointerdown", e => {
     const b = e.target.closest(".tray-item");
     if (!b || b.classList.contains("used") || e.button > 0) return;
@@ -1071,6 +1115,16 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     if (drag) { drag.ghost.remove(); if (drag.page) { const f = faceFor(drag.page); f.hidden = null; drawFace(f); } drag = null; }
     if (pageDrag) { const d = pageDrag; pageDrag = null; d.leaf.held = false; flipTo(d.leaf, d.right ? 0 : 1, d.leaf.grab, { dir: d.right ? 1 : -1, dur: 300, ease: easeOut }); }
     press = null;
+  });
+
+  // Reset takes every stamp off the passport and returns them all to the tray.
+  document.getElementById("reset").addEventListener("click", () => {
+    if (drag) return;
+    const pages = Object.keys(stamps);
+    stamps = {};
+    save();
+    pages.forEach(page => { const f = faceFor(page); if (f) drawFace(f); });
+    renderTray();
   });
 
   // A tap on a tray stamp puts it in its default spot.
