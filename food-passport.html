@@ -10,11 +10,8 @@
   --chrome-line: #e2dfd7;
   --accent: #d9541e;
   --paper: #e8dfcf;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --desk: #1b1d21; --chrome: #26292e; --chrome-line: #3a3d43; --accent: #f07a45; color-scheme: dark; }
-}
-:root[data-theme="dark"] { --desk: #1b1d21; --chrome: #26292e; --chrome-line: #3a3d43; --accent: #f07a45; color-scheme: dark; }
 
 html, body { height: 100%; }
 body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
@@ -248,6 +245,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   const INK = makeInkMask(512);
   const PAPER_GRAIN = makeGrain(256, [90, 68, 38], 26);
   const COVER_GRAIN = makeGrain(256, [0, 0, 0], 30);
+  const COVER_NOISE = makeGrain(256, [255, 255, 255], 26); // light speckle so the dark cover reads as noisy
 
   // ---------- stamp artwork (canvas, so it can be painted onto page textures) ----------
   const C = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -440,6 +438,9 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     } else {
       ctx.fillStyle = "#1D1C1C"; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = ctx.createPattern(COVER_GRAIN, "repeat"); ctx.fillRect(0, 0, w, h);
+      const noise = ctx.createPattern(COVER_NOISE, "repeat");
+      noise.setTransform(new DOMMatrix().scale(2.5)); // coarse enough to survive the texture being shrunk on screen
+      ctx.fillStyle = noise; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = grad("rgba(0,0,0,.18)", "rgba(0,0,0,0)"); ctx.fillRect(0, 0, w, h);
     }
     ctx.restore();
@@ -534,15 +535,28 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   })();
   const shadowGeo = new THREE.PlaneGeometry(W + 2 * SH_M, H + 2 * SH_M);
 
+  // Covers get a soft gloss toward the top-left corner. It is part of the cover's own shading
+  // (not a reflection of the light), so it stays on the cover while it turns, dimming as it tilts.
+  const coverMaterial = (face, side) => {
+    const mat = new THREE.MeshStandardMaterial({ map: face.texture, roughness: .92, metalness: 0, alphaTest: .5, side });
+    mat.onBeforeCompile = sh => {
+      sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+        vec2 gd = (vUv - vec2(0., 1.)) * vec2(${CW.toFixed(3)}, ${CH.toFixed(3)});
+        float facing = abs(dot(normal, normalize(vViewPosition)));
+        totalEmissiveRadiance += vec3(.2) * exp(-dot(gd, gd) / .32) * mix(.55, 1., facing);`);
+    };
+    return mat;
+  };
+
   const leaves = faces.map(([front, back], i) => {
     const isCover = i === 0 || i === n - 1;
     const w = isCover ? CW : W, h = isCover ? CH : H;
     const geo = new THREE.PlaneGeometry(1, 1, SEG_X, SEG_Y);
-    const frontMat = new THREE.MeshStandardMaterial({ map: front.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.FrontSide });
+    const frontMat = front.kind === "cover" ? coverMaterial(front, THREE.FrontSide) : new THREE.MeshStandardMaterial({ map: front.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.FrontSide });
     frontMat.shadowSide = THREE.DoubleSide;
     back.texture.repeat.x = -1;
     back.texture.offset.x = 1;
-    const backMat = new THREE.MeshStandardMaterial({ map: back.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.BackSide });
+    const backMat = back.kind === "cover" ? coverMaterial(back, THREE.BackSide) : new THREE.MeshStandardMaterial({ map: back.texture, roughness: .92, metalness: 0, alphaTest: .5, side: THREE.BackSide });
     const fm = new THREE.Mesh(geo, frontMat), bm = new THREE.Mesh(geo, backMat);
     fm.castShadow = true;
     // cast the sheet's real rounded outline, not a square
