@@ -735,6 +735,9 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
 
   function fit() {
     const w = scene.clientWidth, h = scene.clientHeight;
+    // A hidden or collapsed scene reports 0×0. Sizing from that divides by zero, and the NaN
+    // spreads into every sheet's eased position and never recovers, so keep the last good size.
+    if (!w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -859,12 +862,12 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   const tray = document.getElementById("tray");
   function renderTray() {
     const regions = openFaces().filter(o => o.face.region && atRest(o.leaf)).map(o => REGIONS.find(r => r.id === o.face.region));
-    const key = regions.map(r => r.id + ":" + (stamps[r.id] || []).map(s => s.cuisine).join("+")).join("|");
+    const have = new Set(Object.values(stamps).flat().map(s => s.cuisine)); // placed on any page
+    const key = regions.map(r => r.id + ":" + r.cuisines.filter(c => have.has(c.id)).map(c => c.id).join("+")).join("|");
     if (tray.dataset.key === key) return;
     tray.dataset.key = key;
     tray.innerHTML = "";
     regions.forEach(region => {
-      const have = new Set((stamps[region.id] || []).map(s => s.cuisine));
       const g = document.createElement("div");
       g.className = "tray-group";
       region.cuisines.forEach(c => {
@@ -883,28 +886,43 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   }
   renderTray();
 
-  function placeStamp(regionId, cuisine, x, y, r) {
-    const list = (stamps[regionId] ||= []);
+  // Stamps are stored per page (keyed by the page's region id), but a stamp can go on any page.
+  // Each cuisine appears at most once in the passport.
+  function findStamp(cuisine) {
+    for (const page in stamps) {
+      const s = stamps[page].find(s => s.cuisine === cuisine);
+      if (s) return { page, s };
+    }
+    return null;
+  }
+  function placeStamp(page, cuisine, x, y, r) {
+    const prev = findStamp(cuisine);
+    if (prev && prev.page !== page) { // moved to another page: take it off the old one, keep its date
+      stamps[prev.page] = stamps[prev.page].filter(s => s.cuisine !== cuisine);
+      drawFace(faceFor(prev.page));
+    }
+    const list = (stamps[page] ||= []);
     const s = list.find(s => s.cuisine === cuisine);
     if (s) Object.assign(s, { x, y, r });
-    else list.push({ cuisine, x, y, r, date: today() });
+    else list.push({ cuisine, x, y, r, date: prev ? prev.s.date : today() });
     save();
-    drawFace(faceFor(regionId));
+    drawFace(faceFor(page));
     renderTray();
   }
-  function removeStamp(regionId, cuisine) {
-    stamps[regionId] = (stamps[regionId] || []).filter(s => s.cuisine !== cuisine);
+  function removeStamp(page, cuisine) {
+    stamps[page] = (stamps[page] || []).filter(s => s.cuisine !== cuisine);
     save();
-    drawFace(faceFor(regionId));
+    drawFace(faceFor(page));
     renderTray();
   }
 
   // ---------- pointer: click a page to turn it, drag stamps ----------
   let drag = null, press = null;
 
-  function startDrag(e, cuisine, fromPage) {
+  // `page` is the page the stamp is being picked up from, or null when it comes from the tray.
+  function startDrag(e, cuisine, page) {
     const c = cuisineById[cuisine];
-    const existing = (stamps[c.region] || []).find(s => s.cuisine === cuisine);
+    const existing = findStamp(cuisine)?.s;
     const ghost = document.createElement("div");
     ghost.className = "ghost";
     const size = screenPageWidth() * .28;
@@ -916,8 +934,8 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const rot = existing ? existing.r : Math.random() * 16 - 8;
     ghost.style.rotate = rot + "deg";
     document.body.appendChild(ghost);
-    drag = { cuisine, region: c.region, fromPage, ghost, rot, x0: e.clientX, y0: e.clientY, moved: false, pointerId: e.pointerId };
-    if (fromPage) { const f = faceFor(c.region); f.hidden = cuisine; drawFace(f); }
+    drag = { cuisine, page, ghost, rot, x0: e.clientX, y0: e.clientY, moved: false, pointerId: e.pointerId };
+    if (page) { const f = faceFor(page); f.hidden = cuisine; drawFace(f); }
     moveGhost(e);
   }
   function moveGhost(e) {
@@ -928,15 +946,14 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const d = drag;
     drag = null;
     d.ghost.remove();
-    const f = faceFor(d.region);
-    f.hidden = null;
+    if (d.page) faceFor(d.page).hidden = null;
     const h = hit(e.clientX, e.clientY);
-    if (d.moved && h && h.face.region === d.region && atRest(h.leaf)) {
-      placeStamp(d.region, d.cuisine, Math.min(.88, Math.max(.12, h.u)), Math.min(.9, Math.max(.1, h.v)), d.rot);
-    } else if (d.moved && d.fromPage && !h) {
-      removeStamp(d.region, d.cuisine);
-    } else {
-      drawFace(f);
+    if (d.moved && h && h.face.region && atRest(h.leaf)) { // any open page takes any stamp
+      placeStamp(h.face.region, d.cuisine, Math.min(.88, Math.max(.12, h.u)), Math.min(.9, Math.max(.1, h.v)), d.rot);
+    } else if (d.moved && d.page && !h) {
+      removeStamp(d.page, d.cuisine);
+    } else if (d.page) {
+      drawFace(faceFor(d.page));
     }
     return d;
   }
@@ -957,7 +974,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     const h = hit(e.clientX, e.clientY);
     if (h && h.face.region && atRest(h.leaf)) {
       const s = stampAt(h);
-      if (s) { startDrag(e, s.cuisine, true); return; }
+      if (s) { startDrag(e, s.cuisine, h.face.region); return; }
     }
     press = { x: e.clientX, y: e.clientY, id: e.pointerId, h };
   });
@@ -1009,7 +1026,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     if (!b || b.classList.contains("used") || e.button > 0) return;
     e.preventDefault();
     try { b.setPointerCapture(e.pointerId); } catch (err) {}
-    startDrag(e, b.dataset.cuisine, false);
+    startDrag(e, b.dataset.cuisine, null);
   });
 
   // Cursor: grab near a page's free edge (where a turn can start), grabbing while a page is held.
@@ -1037,7 +1054,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   window.addEventListener("pointerup", e => {
     if (drag && e.pointerId === drag.pointerId) {
       const d = endDrag(e);
-      if (!d.moved && !d.fromPage) tapPlace(d.cuisine);
+      if (!d.moved && !d.page) tapPlace(d.cuisine);
       return;
     }
     if (pageDrag && press && press.id === e.pointerId) { endPageDrag(); press = null; return; }
@@ -1050,7 +1067,7 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
     }
   });
   window.addEventListener("pointercancel", () => {
-    if (drag) { drag.ghost.remove(); const f = faceFor(drag.region); f.hidden = null; drawFace(f); drag = null; }
+    if (drag) { drag.ghost.remove(); if (drag.page) { const f = faceFor(drag.page); f.hidden = null; drawFace(f); } drag = null; }
     if (pageDrag) { const d = pageDrag; pageDrag = null; d.leaf.held = false; flipTo(d.leaf, d.right ? 0 : 1, d.leaf.grab, { dir: d.right ? 1 : -1, dur: 300, ease: easeOut }); }
     press = null;
   });
@@ -1058,11 +1075,12 @@ body { background: var(--desk); padding-inline: 16px; overflow-x: hidden; }
   // A tap on a tray stamp puts it in its default spot.
   function tapPlace(cuisine) {
     const c = cuisineById[cuisine];
-    const open = openFaces().find(o => o.face.region === c.region && atRest(o.leaf));
+    const pages = openFaces().filter(o => o.face.region && atRest(o.leaf));
+    const open = pages.find(o => o.face.region === c.region) || pages[0];
     if (!open) return;
     const idx = REGIONS.find(r => r.id === c.region).cuisines.indexOf(c);
     const [x, y, r] = SPOTS[idx % SPOTS.length];
-    placeStamp(c.region, cuisine, x, y, r + Math.random() * 6 - 3);
+    placeStamp(open.face.region, cuisine, x, y, r + Math.random() * 6 - 3);
   }
 
   document.addEventListener("keydown", e => {
